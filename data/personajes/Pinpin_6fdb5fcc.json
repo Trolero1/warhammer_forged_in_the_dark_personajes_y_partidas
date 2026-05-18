@@ -1,0 +1,51 @@
+{
+  "id": "6fdb5fcc",
+  "nombre": "Pinpin",
+  "apodo": "PiesRápidos",
+  "numero": 4,
+  "raza": "Halfling",
+  "profesion": "Ladrón",
+  "edad": "Joven",
+  "atributos": {
+    "CUE": 0,
+    "INT": 0,
+    "VOL": 0
+  },
+  "habilidades": {
+    "cazar": 0,
+    "estudiar": 0,
+    "percibir": 1,
+    "trastear": 0,
+    "sigilo": 3,
+    "mover": 2,
+    "luchar": 2,
+    "destruir": 0,
+    "sobrenatural": 0,
+    "liderar": 0,
+    "socializar": 0,
+    "influir": 0
+  },
+  "debilidad": "Glotón: aprovecho cualquier oportunidad para comer algo sabroso.",
+  "motivacion": "Amistad",
+  "vicio": "Sexo",
+  "equipo": "",
+  "recuerdos": [
+    "Un par de dados simples hechos de hueso",
+    "Una piedra de forma extraña"
+  ],
+  "aspecto": [
+    "Un sombrero extraño",
+    "Una sonrisa constante en los labios"
+  ],
+  "trasfondo_origen": "Pobres",
+  "trasfondo_ninez": "Intuición",
+  "trasfondo_adolescencia": "Entrenaste con armas",
+  "trasfondo_juventud": "Fuiste un ladrón",
+  "estres": 0,
+  "corrupcion": 0,
+  "nivel": 0,
+  "heridas_leves": 0,
+  "heridas_graves": 0,
+  "heridas_muy_graves": 0,
+  "fecha_creacion": "2026-05-19 00:38"
+}

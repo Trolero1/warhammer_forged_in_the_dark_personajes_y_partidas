@@ -1,0 +1,51 @@
+{
+  "id": "d37bec3a",
+  "nombre": "Magician",
+  "apodo": "CapaGris",
+  "numero": 3,
+  "raza": "Humano",
+  "profesion": "Mago",
+  "edad": "Adulto",
+  "atributos": {
+    "CUE": 0,
+    "INT": 0,
+    "VOL": 0
+  },
+  "habilidades": {
+    "cazar": 0,
+    "estudiar": 2,
+    "percibir": 1,
+    "trastear": 0,
+    "sigilo": 0,
+    "mover": 0,
+    "luchar": 1,
+    "destruir": 0,
+    "sobrenatural": 3,
+    "liderar": 0,
+    "socializar": 0,
+    "influir": 1
+  },
+  "debilidad": "Fanfarrón: siempre exagero mis logros.",
+  "motivacion": "Conocimiento",
+  "vicio": "Sexo",
+  "equipo": "",
+  "recuerdos": [
+    "Un brazalete heredado de tu familia",
+    "Una llave ornamentada"
+  ],
+  "aspecto": [
+    "Delgado y enjuto",
+    "Calvo"
+  ],
+  "trasfondo_origen": "Comerciantes",
+  "trasfondo_ninez": "Intuición",
+  "trasfondo_adolescencia": "Entrenaste con armas",
+  "trasfondo_juventud": "Poder extraño",
+  "estres": 0,
+  "corrupcion": 0,
+  "nivel": 0,
+  "heridas_leves": 0,
+  "heridas_graves": 0,
+  "heridas_muy_graves": 0,
+  "fecha_creacion": "2026-05-19 00:36"
+}

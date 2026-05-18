@@ -1,0 +1,51 @@
+{
+  "id": "6d273e59",
+  "nombre": "Elrond",
+  "apodo": "MenteClara",
+  "numero": 2,
+  "raza": "Alto Elfo",
+  "profesion": "Clérigo",
+  "edad": "Adulto",
+  "atributos": {
+    "CUE": 0,
+    "INT": 0,
+    "VOL": 0
+  },
+  "habilidades": {
+    "cazar": 0,
+    "estudiar": 0,
+    "percibir": 1,
+    "trastear": 0,
+    "sigilo": 0,
+    "mover": 0,
+    "luchar": 1,
+    "destruir": 0,
+    "sobrenatural": 3,
+    "liderar": 1,
+    "socializar": 1,
+    "influir": 0
+  },
+  "debilidad": "Fanfarrón: siempre exagero mis logros.",
+  "motivacion": "Conocimiento",
+  "vicio": "Obligación",
+  "equipo": "",
+  "recuerdos": [
+    "Un anillo con una inscripción",
+    "Un brazalete heredado de tu familia"
+  ],
+  "aspecto": [
+    "Ojos azules honestos",
+    "Delgado y enjuto"
+  ],
+  "trasfondo_origen": "Nobles",
+  "trasfondo_ninez": "Intuición",
+  "trasfondo_adolescencia": "Entrenaste con armas",
+  "trasfondo_juventud": "Poder extraño",
+  "estres": 0,
+  "corrupcion": 0,
+  "nivel": 0,
+  "heridas_leves": 0,
+  "heridas_graves": 0,
+  "heridas_muy_graves": 0,
+  "fecha_creacion": "2026-05-19 00:28"
+}
