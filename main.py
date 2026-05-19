@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 class WarhammerGame:
     def __init__(self):
         pygame.init()
+        try:
+            pygame.mixer.init()
+        except Exception:
+            pass
         pygame.freetype.init()
 
         self.screen = pygame.display.set_mode(

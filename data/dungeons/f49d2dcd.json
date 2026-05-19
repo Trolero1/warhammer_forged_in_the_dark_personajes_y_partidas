@@ -1,0 +1,32 @@
+{
+  "id": "f49d2dcd",
+  "nombre": "3",
+  "fecha_creacion": "19/05/2026 11:16",
+  "numero": 3,
+  "rooms": [
+    {
+      "id": "91c4195a",
+      "numero": 1,
+      "nombre": "Habitación Inicial",
+      "descripcion": "",
+      "imagen": "",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": []
+    }
+  ],
+  "items_globales": [],
+  "monstruos_globales": [],
+  "pnjs_globales": [],
+  "mecanismos_globales": [],
+  "_next_room": 2,
+  "_next_item": 1,
+  "_next_monstruo": 1,
+  "_next_pnj": 1,
+  "_next_mecanismo": 1
+}

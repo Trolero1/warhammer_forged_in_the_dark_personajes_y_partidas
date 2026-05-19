@@ -1,0 +1,65 @@
+{
+  "id": "bb7c6018",
+  "nombre": "19052026",
+  "fecha_creacion": "19/05/2026 17:32",
+  "numero": 4,
+  "rooms": [
+    {
+      "id": "2c7eedff",
+      "numero": 1,
+      "nombre": "Entrada del templo",
+      "descripcion": "Estais en el desierto, ante la entrada de un antiguo templo en ruinas",
+      "imagen": "templo_entrada.png",
+      "sonido": "desert_wind.ogg",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "norte",
+          "room_destino_id": "8d0e8478",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
+    },
+    {
+      "id": "8d0e8478",
+      "numero": 2,
+      "nombre": "Patio del templo",
+      "descripcion": "El patio del templo, al norte veis unas escaleras que bajan",
+      "imagen": "templo_patio.png",
+      "sonido": "desert_wind.ogg",
+      "x": 0,
+      "y": 1,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "sur",
+          "room_destino_id": "2c7eedff",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
+    }
+  ],
+  "items_globales": [],
+  "monstruos_globales": [],
+  "pnjs_globales": [],
+  "mecanismos_globales": [],
+  "_next_room": 3,
+  "_next_item": 1,
+  "_next_monstruo": 1,
+  "_next_pnj": 1,
+  "_next_mecanismo": 1
+}

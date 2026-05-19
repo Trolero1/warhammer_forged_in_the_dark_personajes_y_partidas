@@ -1,0 +1,96 @@
+{
+  "id": "62989748",
+  "nombre": "19052026-1",
+  "fecha_creacion": "19/05/2026 18:03",
+  "numero": 5,
+  "rooms": [
+    {
+      "id": "ffe4a611",
+      "numero": 1,
+      "nombre": "Entrada del templo",
+      "descripcion": "Estais en un desierto de arena, ante la entrada de un templo en ruinas. podéis entrar(norte) o seguir por el desierto (e)",
+      "imagen": "templo_entrada.png",
+      "sonido": "desert_wind.ogg",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "norte",
+          "room_destino_id": "15da9bde",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
+    },
+    {
+      "id": "15da9bde",
+      "numero": 2,
+      "nombre": "Patio del templo",
+      "descripcion": "El patio del templo . Al norte parace que hay unas escaleras que bajan",
+      "imagen": "templo_patio.png",
+      "sonido": "desert_wind.ogg",
+      "x": 0,
+      "y": 1,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "sur",
+          "room_destino_id": "ffe4a611",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        },
+        {
+          "direccion": "norte",
+          "room_destino_id": "3f28361b",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
+    },
+    {
+      "id": "3f28361b",
+      "numero": 3,
+      "nombre": "Escaleras hacia la oscuridad",
+      "descripcion": "Estais al borde de unas escaleras que bajan hacia la oscuridad. Podeis intentar bajar  o volver al sur, al patio",
+      "imagen": "templo_escalera.png",
+      "sonido": "",
+      "x": 0,
+      "y": 2,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "sur",
+          "room_destino_id": "15da9bde",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
+    }
+  ],
+  "items_globales": [],
+  "monstruos_globales": [],
+  "pnjs_globales": [],
+  "mecanismos_globales": [],
+  "_next_room": 4,
+  "_next_item": 1,
+  "_next_monstruo": 1,
+  "_next_pnj": 1,
+  "_next_mecanismo": 1
+}

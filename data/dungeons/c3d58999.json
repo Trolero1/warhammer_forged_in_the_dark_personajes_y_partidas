@@ -114,6 +114,13 @@
           "estado_hacia_destino": "abierta",
           "estado_hacia_origen": "abierta",
           "especial_destino_id": ""
+        },
+        {
+          "direccion": "este",
+          "room_destino_id": "98dd1ac3",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
         }
       ]
     },
@@ -229,13 +236,36 @@
           "especial_destino_id": ""
         }
       ]
+    },
+    {
+      "id": "98dd1ac3",
+      "numero": 16,
+      "nombre": "Habitación 16",
+      "descripcion": "",
+      "imagen": "",
+      "x": 3,
+      "y": 0,
+      "z": 0,
+      "items": [],
+      "monstruos": [],
+      "pnjs": [],
+      "mecanismos": [],
+      "salidas": [
+        {
+          "direccion": "oeste",
+          "room_destino_id": "f76e2842",
+          "estado_hacia_destino": "abierta",
+          "estado_hacia_origen": "abierta",
+          "especial_destino_id": ""
+        }
+      ]
     }
   ],
   "items_globales": [],
   "monstruos_globales": [],
   "pnjs_globales": [],
   "mecanismos_globales": [],
-  "_next_room": 16,
+  "_next_room": 17,
   "_next_item": 1,
   "_next_monstruo": 1,
   "_next_pnj": 1,

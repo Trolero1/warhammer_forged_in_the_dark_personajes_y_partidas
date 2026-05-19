@@ -7,6 +7,9 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DUNGEONS_DIR = os.path.join(DATA_DIR, "dungeons")
 SAVES_DIR = os.path.join(DATA_DIR, "saves")
 PERSONAJES_DIR = os.path.join(DATA_DIR, "personajes")
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
+AUDIO_DIR = os.path.join(ASSETS_DIR, "audio")
 
 for d in (DUNGEONS_DIR, SAVES_DIR, PERSONAJES_DIR):
     os.makedirs(d, exist_ok=True)

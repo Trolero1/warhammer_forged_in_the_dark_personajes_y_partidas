@@ -1,10 +1,51 @@
 # screens/screen_game.py - Pantalla de juego
 
+import os
 import pygame
 from constants import *
 from ui_utils import get_font, draw_text, Button, MessageDialog
 from models import Dungeon, Partida
 import persistence
+
+
+def _cargar_imagen(room):
+    """Carga la imagen de una room. Retorna la surface escalada o None."""
+    if not room or not room.imagen or room.imagen.strip() in ("", "None"):
+        return None
+    ruta = os.path.join(IMAGES_DIR, room.imagen.strip())
+    if not os.path.isfile(ruta):
+        return None
+    try:
+        return pygame.image.load(ruta).convert()
+    except Exception:
+        return None
+
+
+def _escalar_imagen(imagen, rect):
+    if imagen is None:
+        return None
+    img_rect = imagen.get_rect()
+    scale = min(rect.w / img_rect.w, rect.h / img_rect.h)
+    nuevo_w = int(img_rect.w * scale)
+    nuevo_h = int(img_rect.h * scale)
+    return pygame.transform.smoothscale(imagen, (nuevo_w, nuevo_h))
+
+
+def _cargar_y_reproducir_sonido(room, canal):
+    """Carga y reproduce el sonido de una room. Retorna el Sound o None."""
+    if not room or not room.sonido or room.sonido.strip() in ("", "None"):
+        canal.stop()
+        return None
+    ruta = os.path.join(AUDIO_DIR, room.sonido.strip())
+    if not os.path.isfile(ruta):
+        canal.stop()
+        return None
+    try:
+        sonido = pygame.mixer.Sound(ruta)
+        canal.play(sonido)
+        return sonido
+    except Exception:
+        return None
 
 
 def run_game(screen, partida: Partida, dungeon: Dungeon):
@@ -22,6 +63,11 @@ def run_game(screen, partida: Partida, dungeon: Dungeon):
     text_zone = pygame.Rect(0, top_h, W, bot_h)
 
     room = dungeon.room_por_id(partida.room_actual_id) if partida.room_actual_id else None
+
+    _room_image_orig = _cargar_imagen(room)
+    _room_image_scaled = _escalar_imagen(_room_image_orig, img_rect)
+    _canal_sonido = pygame.mixer.Channel(0)
+    _current_sound = _cargar_y_reproducir_sonido(room, _canal_sonido)
 
     text_log = ["Bienvenido a Warhammer Forged in the Dark!", "Usa los botones para moverte y actuar."]
 
@@ -53,6 +99,9 @@ def run_game(screen, partida: Partida, dungeon: Dungeon):
                                 if dest:
                                     partida.room_actual_id = dest.id
                                     room = dest
+                                    _room_image_orig = _cargar_imagen(room)
+                                    _room_image_scaled = _escalar_imagen(_room_image_orig, img_rect)
+                                    _current_sound = _cargar_y_reproducir_sonido(room, _canal_sonido)
                                     text_log.append(f"Te mueves hacia {dir_keys[i]}. Llegas a: {dest.nombre}")
                                     if len(text_log) > 20:
                                         text_log.pop(0)
@@ -67,9 +116,16 @@ def run_game(screen, partida: Partida, dungeon: Dungeon):
 
         pygame.draw.rect(screen, (20, 20, 30), img_rect)
         pygame.draw.rect(screen, MID_GRAY, img_rect, 1)
+        if _room_image_scaled:
+            ix = img_rect.x + (img_rect.w - _room_image_scaled.get_width()) // 2
+            iy = img_rect.y + (img_rect.h - _room_image_scaled.get_height()) // 2
+            screen.blit(_room_image_scaled, (ix, iy))
         if room:
-            draw_text(screen, f"#{room.numero}  {room.nombre}", img_rect.x + 10, img_rect.y + 10, 18, GOLD, bold=True)
-            draw_text(screen, room.descripcion, img_rect.x + 10, img_rect.y + 40, 13, WHITE, max_width=img_w - 20)
+            overlay = pygame.Surface((img_rect.w, 60), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 160))
+            screen.blit(overlay, (img_rect.x, img_rect.bottom - 60))
+            draw_text(screen, f"#{room.numero}  {room.nombre}", img_rect.x + 10, img_rect.bottom - 55, 18, GOLD, bold=True)
+            draw_text(screen, room.descripcion, img_rect.x + 10, img_rect.bottom - 30, 13, WHITE, max_width=img_w - 20)
 
         pygame.draw.rect(screen, BG_PANEL, panel_rect)
         pygame.draw.rect(screen, MID_GRAY, panel_rect, 1)
@@ -108,6 +164,8 @@ def run_game(screen, partida: Partida, dungeon: Dungeon):
 
         pygame.display.flip()
         clock.tick(60)
+
+    _canal_sonido.stop()
 
     if save_requested:
         persistence.guardar_partida(partida, dungeon)

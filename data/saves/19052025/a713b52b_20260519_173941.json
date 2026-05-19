@@ -1,0 +1,278 @@
+{
+  "id": "a713b52b",
+  "nombre": "19052025",
+  "dungeon_id": "bb7c6018",
+  "fecha_guardado": "19/05/2026 17:39",
+  "personajes": [
+    {
+      "id": "a9b3c707",
+      "nombre": "ODIN",
+      "apodo": "El valiente",
+      "numero": 1,
+      "raza": "Humano",
+      "profesion": "Guerrero",
+      "edad": "Joven",
+      "atributos": {
+        "CUE": 0,
+        "INT": 0,
+        "VOL": 0
+      },
+      "habilidades": {
+        "cazar": 0,
+        "estudiar": 0,
+        "percibir": 2,
+        "trastear": 0,
+        "sigilo": 1,
+        "mover": 2,
+        "luchar": 3,
+        "destruir": 0,
+        "sobrenatural": 0,
+        "liderar": 0,
+        "socializar": 0,
+        "influir": 0
+      },
+      "debilidad": "Fanfarrón: siempre exagero mis logros.",
+      "motivacion": "Riquezas",
+      "vicio": "Sexo",
+      "equipo": "",
+      "recuerdos": [
+        "Un colmillo tomado como trofeo de una bestia",
+        "Una llave ornamentada"
+      ],
+      "aspecto": [
+        "Ojos azules honestos",
+        "Una sonrisa constante en los labios"
+      ],
+      "trasfondo_origen": "Pobres",
+      "trasfondo_ninez": "Intuición",
+      "trasfondo_adolescencia": "Entrenaste con armas",
+      "trasfondo_juventud": "Fuiste un ladrón",
+      "estres": 0,
+      "corrupcion": 0,
+      "nivel": 0,
+      "heridas_leves": 0,
+      "heridas_graves": 0,
+      "heridas_muy_graves": 0,
+      "fecha_creacion": "2026-05-19 00:07"
+    },
+    {
+      "id": "6d273e59",
+      "nombre": "Elrond",
+      "apodo": "MenteClara",
+      "numero": 2,
+      "raza": "Alto Elfo",
+      "profesion": "Clérigo",
+      "edad": "Adulto",
+      "atributos": {
+        "CUE": 0,
+        "INT": 0,
+        "VOL": 0
+      },
+      "habilidades": {
+        "cazar": 0,
+        "estudiar": 0,
+        "percibir": 1,
+        "trastear": 0,
+        "sigilo": 0,
+        "mover": 0,
+        "luchar": 1,
+        "destruir": 0,
+        "sobrenatural": 3,
+        "liderar": 1,
+        "socializar": 1,
+        "influir": 0
+      },
+      "debilidad": "Fanfarrón: siempre exagero mis logros.",
+      "motivacion": "Conocimiento",
+      "vicio": "Obligación",
+      "equipo": "",
+      "recuerdos": [
+        "Un anillo con una inscripción",
+        "Un brazalete heredado de tu familia"
+      ],
+      "aspecto": [
+        "Ojos azules honestos",
+        "Delgado y enjuto"
+      ],
+      "trasfondo_origen": "Nobles",
+      "trasfondo_ninez": "Intuición",
+      "trasfondo_adolescencia": "Entrenaste con armas",
+      "trasfondo_juventud": "Poder extraño",
+      "estres": 0,
+      "corrupcion": 0,
+      "nivel": 0,
+      "heridas_leves": 0,
+      "heridas_graves": 0,
+      "heridas_muy_graves": 0,
+      "fecha_creacion": "2026-05-19 00:28"
+    },
+    {
+      "id": "d37bec3a",
+      "nombre": "Magician",
+      "apodo": "CapaGris",
+      "numero": 3,
+      "raza": "Humano",
+      "profesion": "Mago",
+      "edad": "Adulto",
+      "atributos": {
+        "CUE": 0,
+        "INT": 0,
+        "VOL": 0
+      },
+      "habilidades": {
+        "cazar": 0,
+        "estudiar": 2,
+        "percibir": 1,
+        "trastear": 0,
+        "sigilo": 0,
+        "mover": 0,
+        "luchar": 1,
+        "destruir": 0,
+        "sobrenatural": 3,
+        "liderar": 0,
+        "socializar": 0,
+        "influir": 1
+      },
+      "debilidad": "Fanfarrón: siempre exagero mis logros.",
+      "motivacion": "Conocimiento",
+      "vicio": "Sexo",
+      "equipo": "",
+      "recuerdos": [
+        "Un brazalete heredado de tu familia",
+        "Una llave ornamentada"
+      ],
+      "aspecto": [
+        "Delgado y enjuto",
+        "Calvo"
+      ],
+      "trasfondo_origen": "Comerciantes",
+      "trasfondo_ninez": "Intuición",
+      "trasfondo_adolescencia": "Entrenaste con armas",
+      "trasfondo_juventud": "Poder extraño",
+      "estres": 0,
+      "corrupcion": 0,
+      "nivel": 0,
+      "heridas_leves": 0,
+      "heridas_graves": 0,
+      "heridas_muy_graves": 0,
+      "fecha_creacion": "2026-05-19 00:36"
+    },
+    {
+      "id": "6fdb5fcc",
+      "nombre": "Pinpin",
+      "apodo": "PiesRápidos",
+      "numero": 4,
+      "raza": "Halfling",
+      "profesion": "Ladrón",
+      "edad": "Joven",
+      "atributos": {
+        "CUE": 0,
+        "INT": 0,
+        "VOL": 0
+      },
+      "habilidades": {
+        "cazar": 0,
+        "estudiar": 0,
+        "percibir": 1,
+        "trastear": 0,
+        "sigilo": 3,
+        "mover": 2,
+        "luchar": 2,
+        "destruir": 0,
+        "sobrenatural": 0,
+        "liderar": 0,
+        "socializar": 0,
+        "influir": 0
+      },
+      "debilidad": "Glotón: aprovecho cualquier oportunidad para comer algo sabroso.",
+      "motivacion": "Amistad",
+      "vicio": "Sexo",
+      "equipo": "",
+      "recuerdos": [
+        "Un par de dados simples hechos de hueso",
+        "Una piedra de forma extraña"
+      ],
+      "aspecto": [
+        "Un sombrero extraño",
+        "Una sonrisa constante en los labios"
+      ],
+      "trasfondo_origen": "Pobres",
+      "trasfondo_ninez": "Intuición",
+      "trasfondo_adolescencia": "Entrenaste con armas",
+      "trasfondo_juventud": "Fuiste un ladrón",
+      "estres": 0,
+      "corrupcion": 0,
+      "nivel": 0,
+      "heridas_leves": 0,
+      "heridas_graves": 0,
+      "heridas_muy_graves": 0,
+      "fecha_creacion": "2026-05-19 00:38"
+    }
+  ],
+  "room_actual_id": "2c7eedff",
+  "inventario": [],
+  "monedas": 0,
+  "dungeon_snapshot": {
+    "id": "bb7c6018",
+    "numero": 4,
+    "nombre": "19052026",
+    "fecha_creacion": "19/05/2026 17:32",
+    "rooms": [
+      {
+        "id": "2c7eedff",
+        "numero": 1,
+        "nombre": "Entrada del templo",
+        "descripcion": "Estais en el desierto, ante la entrada de un antiguo templo en ruinas",
+        "imagen": "templo_entrada.png",
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "items": [],
+        "monstruos": [],
+        "pnjs": [],
+        "mecanismos": [],
+        "salidas": [
+          {
+            "direccion": "norte",
+            "room_destino_id": "8d0e8478",
+            "estado_hacia_destino": "abierta",
+            "estado_hacia_origen": "abierta",
+            "especial_destino_id": ""
+          }
+        ]
+      },
+      {
+        "id": "8d0e8478",
+        "numero": 2,
+        "nombre": "Patio del templo",
+        "descripcion": "El patio del templo, al norte veis unas escaleras que bajan",
+        "imagen": "templo_patio.png",
+        "x": 0,
+        "y": 1,
+        "z": 0,
+        "items": [],
+        "monstruos": [],
+        "pnjs": [],
+        "mecanismos": [],
+        "salidas": [
+          {
+            "direccion": "sur",
+            "room_destino_id": "2c7eedff",
+            "estado_hacia_destino": "abierta",
+            "estado_hacia_origen": "abierta",
+            "especial_destino_id": ""
+          }
+        ]
+      }
+    ],
+    "items_globales": [],
+    "monstruos_globales": [],
+    "pnjs_globales": [],
+    "mecanismos_globales": [],
+    "_next_room": 3,
+    "_next_item": 1,
+    "_next_monstruo": 1,
+    "_next_pnj": 1,
+    "_next_mecanismo": 1
+  }
+}

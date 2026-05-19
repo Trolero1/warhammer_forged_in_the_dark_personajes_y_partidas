@@ -226,6 +226,7 @@ class Room:
     nombre: str = ""
     descripcion: str = ""
     imagen: str = ""
+    sonido: str = ""
     x: int = 0
     y: int = 0
     z: int = 0
@@ -238,7 +239,7 @@ class Room:
     def to_dict(self):
         return {
             "id": self.id, "numero": self.numero, "nombre": self.nombre,
-            "descripcion": self.descripcion, "imagen": self.imagen,
+            "descripcion": self.descripcion, "imagen": self.imagen, "sonido": self.sonido,
             "x": self.x, "y": self.y, "z": self.z,
             "items": [i.to_dict() for i in self.items],
             "monstruos": [m.to_dict() for m in self.monstruos],
