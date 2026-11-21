@@ -1,143 +1,198 @@
 # screens/screen_ficha_personaje.py
-# Pantalla para ver la ficha de un personaje ya guardado
+# Ficha de personaje: texto de la ficha, dibujo de retratos y pantalla de consulta.
 
+import os
 import pygame
 from constants import *
-from ui_utils import get_font, draw_text, Button, ScrollArea
-from models import Personaje, TODAS_LAS_HABILIDADES
-from screens.screen_personaje_creador import CARACTERISTICAS
+from ui_utils import draw_text
+import reglas
+from reglas import HABILIDADES_POR_ATRIBUTO, NOMBRE_ATRIBUTO, ETAPAS_TRASFONDO
+from formularios import Formulario, Titulo, Info, Separador, Campo, boton, texto_ajustado
 
 
-def text_size(text, size, bold=False):
-    font = get_font(size, bold=bold)
-    return font.size(text)
+# ══════════════════════════════════════════════════════════════════════════════
+# RETRATOS
+# ══════════════════════════════════════════════════════════════════════════════
 
+COLOR_CLASE = {
+    "Guerrero": (150, 50, 40), "Explorador": (60, 120, 60), "Ladrón": (70, 70, 90),
+    "Comerciante": (160, 120, 40), "Bardo": (130, 60, 130), "Extraño": (50, 80, 150),
+}
+_cache_retratos = {}
+
+
+def _imagen_retrato(nombre, tam):
+    clave = (nombre, tam)
+    if clave in _cache_retratos:
+        return _cache_retratos[clave]
+    img = None
+    ruta = os.path.join(RETRATOS_DIR, nombre) if nombre else ""
+    if ruta and os.path.isfile(ruta):
+        try:
+            raw = pygame.image.load(ruta).convert()
+            w, h = raw.get_size()
+            lado = min(w, h)
+            raw = raw.subsurface(((w - lado) // 2, (h - lado) // 2, lado, lado))
+            img = pygame.transform.smoothscale(raw, tam)
+        except Exception:
+            img = None
+    _cache_retratos[clave] = img
+    return img
+
+
+def dibujar_retrato(surf, rect, p, apagado=False):
+    """Dibuja el retrato del personaje (imagen o silueta generada)."""
+    rect = pygame.Rect(rect)
+    img = _imagen_retrato(p.retrato, rect.size)
+    if img:
+        surf.blit(img, rect.topleft)
+    else:
+        clip = surf.get_clip()
+        surf.set_clip(rect.clip(clip) if clip else rect)
+        col = COLOR_CLASE.get(p.clase, (90, 70, 50))
+        pygame.draw.rect(surf, tuple(c // 3 for c in col), rect)
+        cx = rect.centerx
+        cab = rect.w // 5
+        pygame.draw.ellipse(surf, col, (cx - rect.w // 2 + 6, rect.y + rect.h * 0.62, rect.w - 12, rect.h * 0.7))
+        pygame.draw.circle(surf, tuple(min(255, c + 40) for c in col), (cx, int(rect.y + rect.h * 0.42)), cab)
+        f = pygame.font.SysFont("monospace", max(10, rect.w // 7), bold=True)
+        ini = (p.raza[:1] + p.clase[:1]).upper()
+        s = f.render(ini, True, (240, 230, 200))
+        surf.blit(s, (rect.x + 4, rect.y + 2))
+        surf.set_clip(clip)
+    if apagado:
+        sombra = pygame.Surface(rect.size, pygame.SRCALPHA)
+        sombra.fill((0, 0, 0, 160))
+        surf.blit(sombra, rect.topleft)
+    pygame.draw.rect(surf, C_BORDE, rect, 2)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEXTO DE LA FICHA
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _puntos(v, mx=4):
+    return "●" * v + "○" * (mx - v)
+
+
+def lineas_ficha(p):
+    """Devuelve [(titulo, texto)] con toda la ficha. Se usa en la ficha y en el resumen."""
+    L = []
+    cab = f"{p.nombre}" + (f" «{p.apodo}»" if p.apodo else "")
+    sub = f"{p.raza} · {p.descripcion_clase} · {p.edad} años ({p.etapa or '?'})"
+    if p.deidad:
+        sub += f" · Deidad: {p.deidad}"
+    L.append((cab, sub))
+    hc = p.habilidad_clase
+    for atr in reglas.ATRIBUTOS:
+        partes = [f"{'♦' if h == hc else ''}{h} {_puntos(p.habilidades.get(h, 0))}"
+                  for h in HABILIDADES_POR_ATRIBUTO[atr]]
+        L.append((f"{NOMBRE_ATRIBUTO[atr].upper()}  [barra {p.atributos.get(atr, 0)}/{reglas.BARRA_ATRIBUTO}]",
+                  "   ".join(partes)))
+    L.append(("ESTADO", f"Puntos de golpe {p.puntos_golpe}/{p.pg_max}   ·   Estrés {p.estres}/{reglas.BARRA_ESTRES}"
+              f"   ·   Corrupción {p.corrupcion}/{reglas.BARRA_CORRUPCION}   ·   Barra de nivel "
+              f"{p.barra_nivel}/{reglas.BARRA_NIVEL}   ·   Armadura {p.armadura - p.armadura_usada}/{p.armadura}"
+              f"   ·   {p.estado.capitalize()}"))
+    if p.traumas or p.ruinas:
+        L.append(("TRAUMAS Y RUINAS", f"Traumas: {', '.join(p.traumas) or '—'}   ·   Ruinas: {', '.join(p.ruinas) or '—'}"))
+    tal = "; ".join(t["nombre"] + (f" ({t['descripcion']})" if t.get("descripcion") else "") for t in p.talentos)
+    L.append(("TALENTOS", tal or "Ninguno"))
+    extras = []
+    if reglas.RAZAS.get(p.raza, {}).get("infravision"):
+        extras.append("Infravisión a 18 m")
+    res = reglas.RAZAS.get(p.raza, {}).get("resistencias", [])
+    if res:
+        nombres = dict(reglas.TIPOS_RESISTENCIA)
+        extras.append("+1d6 a resistir: " + ", ".join(nombres[r].lower() for r in res))
+    extras.append("Sabe leer y escribir" if p.sabe_leer else "No sabe leer ni escribir")
+    L.append(("RASGOS DE RAZA Y CLASE", ". ".join(extras) + "."))
+    L.append(("MOTIVACIÓN Y VICIO", f"Motivación: {p.motivacion or '—'}   ·   Vicio: {p.vicio or '—'}"))
+    tf = []
+    for c, nombre, _ in ETAPAS_TRASFONDO:
+        e = p.trasfondo.get(c, {})
+        if e.get("texto") or e.get("habilidad"):
+            tf.append(f"{nombre.capitalize()}: {e.get('texto') or '—'}" + (f" (+1 {e['habilidad']})" if e.get("habilidad") else ""))
+    if tf:
+        L.append(("TRASFONDO", "\n".join(tf)))
+    ap = []
+    if p.cabello or p.ojos:
+        ap.append(f"Cabello {p.cabello or '?'}, ojos {p.ojos or '?'}")
+    if p.rasgos_apariencia:
+        ap.append(", ".join(p.rasgos_apariencia))
+    if ap:
+        L.append(("APARIENCIA", ". ".join(ap)))
+    if p.personalidad:
+        L.append(("PERSONALIDAD", ", ".join(p.personalidad)))
+    if p.recuerdos:
+        L.append(("RECUERDOS", " · ".join(p.recuerdos)))
+    if p.amigos or p.enemigos:
+        L.append(("AMIGOS Y ENEMIGOS", f"Amigos: {', '.join(p.amigos) or '—'}\nEnemigos: {', '.join(p.enemigos) or '—'}"))
+    if p.lazos:
+        L.append(("LAZOS", p.lazos))
+    if p.equipo:
+        L.append(("EQUIPO", p.equipo))
+    return L
+
+
+class _Retrato(Campo):
+    def __init__(self, p):
+        self.p = p
+
+    def alto(self, ancho, datos):
+        return 130
+
+    def dibujar(self, surf, rect, datos, form):
+        dibujar_retrato(surf, (rect.x, rect.y, 120, 120), self.p)
+
+
+def builder_ficha(p):
+    def b(_d):
+        c = [_Retrato(p)]
+        for titulo, texto in lineas_ficha(p):
+            c.append(Titulo(titulo, 15))
+            if texto:
+                c.append(Info(texto, 13))
+            c.append(Separador())
+        return c
+    return b
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PANTALLA DE CONSULTA
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ScreenFichaPersonaje:
-    def __init__(self, app, personaje: Personaje):
+    def __init__(self, app, personaje):
         self.app = app
         self.personaje = personaje
-        self.scroll = ScrollArea()
-        W = app.screen.get_width()
-        self.btn_volver = Button((W - 180, 20, 160, 40), "VOLVER", font_size=14, bold=True)
-        self._build_content_height()
+        W, H = app.screen.get_size()
+        self.form = Formulario(builder_ficha(personaje), {}, (80, 130, W - 160, H - 210))
 
-    def _build_content_height(self):
-        n_habs = len([h for h in self.personaje.habilidades.values() if h > 0])
-        h = 500 + n_habs * 18 + 200
-        self.scroll.set_content_height(h, self.app.screen.get_height() - 120)
+    def _volver(self):
+        from screens.screen_personajes import ScreenPersonajesManager
+        self.app.current_screen = ScreenPersonajesManager(self.app)
+
+    def _rect_volver(self):
+        W, H = self.app.screen.get_size()
+        return pygame.Rect(W // 2 - 100, H - 64, 200, 44)
 
     def handle_event(self, event):
-        self.scroll.handle_event(event)
-        if self.btn_volver.handle_event(event, self.scroll.offset):
-            from screens.screen_personajes import ScreenPersonajesManager
-            self.app.current_screen = ScreenPersonajesManager(self.app)
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+            self._volver()
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self._rect_volver().collidepoint(event.pos):
+            self._volver()
+            return
+        self.form.evento(event)
 
     def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        self.btn_volver.update_hover(mp, self.scroll.offset)
+        pass
 
     def draw(self, surf):
+        W, H = surf.get_size()
         surf.fill(C_FONDO)
-        self._draw_header(surf)
-        W = surf.get_width()
-        p = self.personaje
-        off = self.scroll.offset
-
-        draw_text(surf, "FICHA DE PERSONAJE", W // 2 - 150, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-
-        y = 210
-        nombre_txt = f"#{p.numero} {p.nombre} '{p.apodo}'"
-        draw_text(surf, nombre_txt, 80, y - off, 22, C_TITULO, bold=True)
-        y += 30
-        draw_text(surf, f"{p.raza}  ·  {p.profesion}  ·  {p.edad}", 80, y - off, 15, C_SUBTITULO)
-        y += 22
-        if p.fecha_creacion:
-            draw_text(surf, f"Creado: {p.fecha_creacion}", 80, y - off, 11, C_TEXTO_DIM)
-            y += 16
-
-        pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-        y += 12
-
-        a = p.atributos
-        draw_text(surf, f"ATRIBUTOS:  CUE {a['CUE']}  INT {a['INT']}  VOL {a['VOL']}", 80, y - off, 14, C_TITULO, bold=True)
-        y += 22
-        draw_text(surf, f"Estrés: {p.estres}/10  |  Corrupción: {p.corrupcion}/10  |  Nivel: {p.nivel}", 80, y - off, 13, C_TEXTO)
-        y += 18
-        draw_text(surf, f"Heridas:  Leves {p.heridas_leves}/3  |  Graves {p.heridas_graves}/2  |  Muy Graves {p.heridas_muy_graves}/1", 80, y - off, 13, C_TEXTO)
-        y += 22
-
-        pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-        y += 10
-        draw_text(surf, "HABILIDADES", 80, y - off, 14, C_TITULO, bold=True)
-        y += 20
-
-        habs_con_valor = {h: v for h, v in sorted(p.habilidades.items()) if v > 0}
-        mitad = (len(habs_con_valor) + 1) // 2
-        col_x = [80, W // 2 + 20]
-        for ci in range(2):
-            items = list(habs_con_valor.items())[ci * mitad:(ci + 1) * mitad]
-            for hi, (hab, val) in enumerate(items):
-                hy = y + hi * 18 - off
-                if -18 < hy < surf.get_height():
-                    draw_text(surf, f"{hab}: {val}", col_x[ci], hy, 12, C_TEXTO)
-        y += mitad * 18 + 10
-
-        pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-        y += 8
-        if p.raza in CARACTERISTICAS:
-            draw_text(surf, "CARACTERÍSTICA RACIAL", 80, y - off, 13, C_TITULO, bold=True)
-            y += 18
-            draw_text(surf, CARACTERISTICAS[p.raza], 80, y - off, 12, C_TEXTO, max_width=W - 160)
-            y += 30
-
-        for etiqueta, valor in [
-            ("DEBILIDAD", p.debilidad),
-            ("MOTIVACIÓN", p.motivacion),
-            ("VICIO", p.vicio),
-            ("EQUIPO", p.equipo),
-        ]:
-            if valor:
-                pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-                y += 8
-                draw_text(surf, etiqueta, 80, y - off, 13, C_TITULO, bold=True)
-                y += 18
-                draw_text(surf, str(valor), 80, y - off, 12, C_TEXTO, max_width=W - 160)
-                y += 30
-
-        if p.recuerdos:
-            pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-            y += 8
-            draw_text(surf, "RECUERDOS", 80, y - off, 13, C_TITULO, bold=True)
-            y += 18
-            for rec in p.recuerdos:
-                draw_text(surf, f"  ·  {rec}", 80, y - off, 12, C_TEXTO)
-                y += 16
-
-        if p.aspecto:
-            pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-            y += 8
-            draw_text(surf, "ASPECTO", 80, y - off, 13, C_TITULO, bold=True)
-            y += 18
-            draw_text(surf, "  ·  ".join(p.aspecto), 80, y - off, 12, C_TEXTO, max_width=W - 160)
-            y += 30
-
-        for label, val in [("ORIGEN", p.trasfondo_origen), ("NIÑEZ", p.trasfondo_ninez),
-                           ("ADOLESCENCIA", p.trasfondo_adolescencia), ("JUVENTUD", p.trasfondo_juventud)]:
-            if val:
-                pygame.draw.line(surf, C_SEPARADOR, (80, y - off), (W - 80, y - off), 1)
-                y += 8
-                draw_text(surf, f"TRASFONDO - {label}", 80, y - off, 13, C_TITULO, bold=True)
-                y += 18
-                draw_text(surf, val, 80, y - off, 12, C_TEXTO, max_width=W - 160)
-                y += 30
-
-        self.btn_volver.draw(surf, off)
-        self.scroll.set_content_height(y + 60, self.app.screen.get_height() - 120)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
-
-    def _draw_header(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "WARHAMMER", W // 2 - 180, 40, 60, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_TITULO, (60, 130), (W - 60, 130), 2)
+        draw_text(surf, "FICHA DE PERSONAJE", 80, 40, 30, C_TITULO, bold=True)
+        draw_text(surf, f"#{self.personaje.numero}  ·  creado {self.personaje.fecha_creacion}", 82, 82, 13, C_TEXTO_DIM)
+        pygame.draw.line(surf, C_TITULO, (60, 110), (W - 60, 110), 2)
+        self.form.dibujar(surf)
+        boton(surf, self._rect_volver(), "VOLVER", 15)

@@ -1,250 +1,185 @@
-# screens/screen_partidas.py - Gestión de partidas
+# screens/screen_partidas.py - Gestión de aventuras (partidas)
+#
+# NUEVA: elige un dungeon y forma un grupo (de 1 a 6 personajes; puedes crear
+# personajes nuevos sin salir). Los personajes se COPIAN a la partida: su progreso
+# se guarda en la partida (y opcionalmente en sus fichas al salir del juego).
+# CARGAR: elige una aventura y uno de sus guardados.
+# ELIMINAR: borra una aventura con todos sus guardados.
 
 import pygame
 from constants import *
-from ui_utils import get_font, draw_text, Button, MessageDialog, ConfirmDialog, ScrollList, TextInput
+from ui_utils import draw_text
+from formularios import mensaje, confirmar, elegir, pedir_texto, boton
 import persistence
 from screens import screen_game
 from models import Partida
+
+MAX_GRUPO = 6
+
+
+def _nombre_valido(nombre):
+    limpio = "".join(c for c in nombre if c not in '\\/:*?"<>|').strip().rstrip(".")
+    return limpio
 
 
 class ScreenPartidasManager:
     def __init__(self, app):
         self.app = app
-        W = app.screen.get_width()
-
-        btn_w, btn_h, gap = 180, 56, 24
-        total_w = 4 * btn_w + 3 * gap
-        start_x = W // 2 - total_w // 2
-
-        self.btn_nueva = Button((start_x, 390, btn_w, btn_h),
-                                "NUEVA", font_size=16, bold=True,
-                                color=(106, 48, 16))
-        self.btn_cargar = Button((start_x + btn_w + gap, 390, btn_w, btn_h),
-                                 "CARGAR", font_size=16, bold=True)
-        self.btn_eliminar = Button((start_x + 2 * (btn_w + gap), 390, btn_w, btn_h),
-                                   "ELIMINAR", font_size=16, bold=True,
-                                   color=C_ERROR)
-        self.btn_inicio = Button((start_x + 3 * (btn_w + gap), 390, btn_w, btn_h),
-                                 "INICIO", font_size=16, bold=True,
-                                 color=(40, 40, 80))
-
-        self.buttons = [self.btn_nueva, self.btn_cargar, self.btn_eliminar, self.btn_inicio]
         self.closed = False
-        self._pending_continue = hasattr(app, '_party_state') and app._party_state is not None
+        self._pending_continue = getattr(app, "_party_state", None) is not None
+        self.botones = [("NUEVA AVENTURA", self._nueva_partida), ("CARGAR", self._cargar_partida),
+                        ("ELIMINAR", self._eliminar_partida), ("VOLVER", self._volver)]
+
+    def _rects(self):
+        W, H = self.app.screen.get_size()
+        bw, bh, gap = 230, 56, 20
+        x0 = W // 2 - (len(self.botones) * bw + (len(self.botones) - 1) * gap) // 2
+        return [pygame.Rect(x0 + i * (bw + gap), 380, bw, bh) for i in range(len(self.botones))]
+
+    def _volver(self):
+        self.app._party_state = None
+        from screens.screen_main import ScreenMain
+        self.app.current_screen = ScreenMain(self.app)
 
     def handle_event(self, event):
-        if self.btn_inicio.handle_event(event):
-            self.app._party_state = None
-            if self.app.current_screen is self:
-                from screens.screen_main import ScreenMain
-                self.app.current_screen = ScreenMain(self.app)
-            else:
-                self.closed = True
-            return
-        if self.btn_nueva.handle_event(event):
-            self._nueva_partida()
-        elif self.btn_cargar.handle_event(event):
-            self._cargar_partida()
-        elif self.btn_eliminar.handle_event(event):
-            self._eliminar_partida()
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for r, (t, f) in zip(self._rects(), self.botones):
+                if r.collidepoint(event.pos):
+                    f()
+                    return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self._volver()
 
+    # ── Nueva aventura ────────────────────────────────────────────────────
     def _nueva_partida(self):
-        nombre = self._ask_name("Nombre de la nueva partida:")
-        if not nombre:
-            return
-
         dungeons = persistence.listar_dungeons()
         if not dungeons:
-            MessageDialog(self.app.screen, "No hay dungeons disponibles. Crea uno primero con el Editor de Dungeons.").run()
+            mensaje(self.app.screen, "SIN DUNGEONS", "No hay dungeons en data/dungeons. Crea uno con el Editor de Dungeons.")
             return
-
-        idx = self._pick_dungeon(dungeons, "SELECCIONA DUNGEON")
+        nombre = pedir_texto(self.app.screen, "NUEVA AVENTURA", "Nombre de la aventura", placeholder="Ej.: El templo del desierto")
+        if not nombre:
+            return
+        nombre = _nombre_valido(nombre)
+        if not nombre:
+            return
+        if nombre in persistence.listar_nombres_partidas():
+            if not confirmar(self.app.screen, f"Ya existe una aventura llamada «{nombre}». ¿Añadir los guardados a ella?"):
+                return
+        idx = elegir(self.app.screen, "ELIGE DUNGEON",
+                     [f"{d['nombre']}  ({d['num_rooms']} rooms)  {d['fecha_creacion']}" for d in dungeons])
         if idx is None:
             return
-
         dungeon = persistence.cargar_dungeon(dungeons[idx]["id"])
-
-        self.app._party_state = {
-            "nombre": nombre,
-            "dungeon": dungeon,
-            "seleccionados_ids": [],
-        }
+        if not dungeon.rooms:
+            mensaje(self.app.screen, "DUNGEON VACÍO", "Ese dungeon no tiene rooms.")
+            return
+        self.app._party_state = {"nombre": nombre, "dungeon": dungeon, "seleccionados_ids": []}
         self._seleccionar_siguiente_personaje()
 
     def _seleccionar_siguiente_personaje(self):
         state = self.app._party_state
-        i = len(state["seleccionados_ids"]) + 1
-        if i > 4:
-            self._iniciar_partida()
-            return
-
-        # Refresh desde disco: siempre carga los templates (personajes creados)
-        todos = persistence.listar_personajes()
-        disponibles = [p for p in todos if p["id"] not in state["seleccionados_ids"]]
-
-        opciones = list(disponibles)
-        crear_opcion = {"id": "__crear__", "numero": 0, "nombre": "[CREAR NUEVO PERSONAJE]", "raza": "", "profesion": ""}
-        opciones.insert(0, crear_opcion)
-
-        idx = self._pick_personaje_con_crear(opciones, f"ELIGE PERSONAJE {i} PARA EL GRUPO (o crea uno nuevo)")
-        if idx is None:
-            self.app._party_state = None
-            return
-
-        seleccionado = opciones[idx]
-        if seleccionado["id"] == "__crear__":
-            from screens.screen_personaje_creador import ScreenPersonajeCreador
-            self.app.current_screen = ScreenPersonajeCreador(self.app)
-        else:
-            # Carga el template desde disco (siempre fresco, copia para la partida)
-            state["seleccionados_ids"].append(seleccionado["id"])
-            self._seleccionar_siguiente_personaje()
+        while True:
+            sel = state["seleccionados_ids"]
+            if len(sel) >= MAX_GRUPO:
+                self._iniciar_partida()
+                return
+            todos = persistence.listar_personajes()
+            nombres = {p["id"]: p["nombre"] for p in todos}
+            disponibles = [p for p in todos if p["id"] not in sel]
+            opciones = []
+            if sel:
+                opciones.append(("__empezar__", f">> EMPEZAR LA AVENTURA CON {len(sel)} PERSONAJE(S)"))
+            opciones.append(("__crear__", "+  CREAR UN PERSONAJE NUEVO"))
+            opciones += [(p["id"], f"#{p['numero']} {p['nombre']} — {p['raza']} {p['profesion']}") for p in disponibles]
+            grupo = ", ".join(nombres.get(i, "?") for i in sel) or "nadie todavía"
+            idx = elegir(self.app.screen, f"FORMA EL GRUPO ({len(sel)}/{MAX_GRUPO})", [t for _, t in opciones],
+                         texto=f"Grupo: {grupo}", ancho=820)
+            if idx is None:
+                self.app._party_state = None
+                return
+            clave = opciones[idx][0]
+            if clave == "__empezar__":
+                self._iniciar_partida()
+                return
+            if clave == "__crear__":
+                from screens.screen_personaje_creador import ScreenPersonajeCreador
+                self.app.current_screen = ScreenPersonajeCreador(self.app)
+                return
+            sel.append(clave)
 
     def _iniciar_partida(self):
         state = self.app._party_state
-        if not state:
+        self.app._party_state = None
+        if not state or not state["seleccionados_ids"]:
             return
-
-        # Carga cada template desde disco y lo COPIA para la partida
-        personajes_partida = []
-        for pid in state["seleccionados_ids"]:
-            p = persistence.cargar_personaje(pid)
-            personajes_partida.append(p)
-
         partida = Partida()
         partida.nombre = state["nombre"]
         partida.dungeon_id = state["dungeon"].id
-        partida.personajes = personajes_partida
-        partida.room_actual_id = state["dungeon"].rooms[0].id if state["dungeon"].rooms else ""
-        self.app._party_state = None
-        partida, dungeon = screen_game.run_game(self.app.screen, partida, state["dungeon"])
+        partida.personajes = [persistence.cargar_personaje(pid) for pid in state["seleccionados_ids"]]
+        partida.room_actual_id = min(state["dungeon"].rooms, key=lambda r: r.numero or 0).id
+        screen_game.run_game(self.app.screen, partida, state["dungeon"])
 
+    # ── Cargar / eliminar ─────────────────────────────────────────────────
     def _cargar_partida(self):
         nombres = persistence.listar_nombres_partidas()
         if not nombres:
-            MessageDialog(self.app.screen, "No hay partidas guardadas.").run()
+            mensaje(self.app.screen, "CARGAR", "No hay aventuras guardadas.")
             return
-
-        idx_n = self._pick_from_list(nombres, "ELIGE PARTIDA")
-        if idx_n is None:
+        idx = elegir(self.app.screen, "ELIGE AVENTURA", nombres)
+        if idx is None:
             return
-
-        guardados = persistence.listar_guardados_partida(nombres[idx_n])
+        guardados = persistence.listar_guardados_partida(nombres[idx])
         if not guardados:
-            MessageDialog(self.app.screen, "No hay guardados para esta partida.").run()
+            mensaje(self.app.screen, "CARGAR", "Esa aventura no tiene guardados.")
             return
-
-        labels = [f"{g['nombre']} - {g['fecha_guardado']} - {g['dungeon_nombre']}" for g in guardados]
-        idx_g = self._pick_from_list(labels, "ELIGE GUARDADO")
-        if idx_g is None:
+        ig = elegir(self.app.screen, "ELIGE GUARDADO (el más reciente arriba)",
+                    [f"{g['fecha_guardado']}  —  {g['dungeon_nombre']}" for g in guardados])
+        if ig is None:
             return
-
-        partida, dungeon = persistence.cargar_guardado(guardados[idx_g]["path"])
-        partida, dungeon = screen_game.run_game(self.app.screen, partida, dungeon)
+        try:
+            partida, dungeon = persistence.cargar_guardado(guardados[ig]["path"])
+        except Exception as e:
+            mensaje(self.app.screen, "ERROR", f"No se pudo cargar el guardado: {e}")
+            return
+        screen_game.run_game(self.app.screen, partida, dungeon)
 
     def _eliminar_partida(self):
         nombres = persistence.listar_nombres_partidas()
         if not nombres:
-            MessageDialog(self.app.screen, "No hay partidas guardadas.").run()
+            mensaje(self.app.screen, "ELIMINAR", "No hay aventuras guardadas.")
             return
-
-        idx = self._pick_from_list(nombres, "ELIGE PARTIDA A ELIMINAR")
+        idx = elegir(self.app.screen, "ELIGE AVENTURA A ELIMINAR", nombres)
         if idx is None:
             return
-
-        if ConfirmDialog(self.app.screen, f"Eliminar TODOS los guardados de '{nombres[idx]}'?").run():
+        if confirmar(self.app.screen, f"¿Eliminar TODOS los guardados de «{nombres[idx]}»? No se puede deshacer."):
             persistence.eliminar_partida(nombres[idx])
-            MessageDialog(self.app.screen, f"Partida '{nombres[idx]}' eliminada.").run()
+            mensaje(self.app.screen, "ELIMINAR", f"Aventura «{nombres[idx]}» eliminada.")
 
-    def _pick_dungeon(self, dungeons, title):
-        labels = [f"{d['nombre']} ({d['num_rooms']} rooms) - {d['fecha_creacion']}" for d in dungeons]
-        return self._pick_from_list(labels, title)
-
-    def _pick_personaje_con_crear(self, opciones, title):
-        labels = []
-        for p in opciones:
-            if p["id"] == "__crear__":
-                labels.append("+  CREAR NUEVO PERSONAJE")
-            else:
-                labels.append(f"#{p['numero']} {p['nombre']} - {p['raza']} {p['profesion']}")
-        return self._pick_from_list(labels, title)
-
-    def _pick_from_list(self, items, title):
-        W, H = self.app.screen.get_width(), self.app.screen.get_height()
-        rect = pygame.Rect(W // 2 - 350, H // 2 - 200, 700, 400)
-        sl = ScrollList(rect, items, font_size=14, title=title)
-        clock = pygame.time.Clock()
-
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return None
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    return None
-                idx = sl.handle_event(event)
-                if idx is not None:
-                    return idx
-
-            overlay = pygame.Surface((W, H), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 200))
-            self.app.screen.blit(overlay, (0, 0))
-            pygame.draw.rect(self.app.screen, DARK_GRAY, rect, border_radius=6)
-            pygame.draw.rect(self.app.screen, GOLD, rect, 2, border_radius=6)
-            sl.draw(self.app.screen)
-            hint = get_font(12).render("ESC para cancelar", True, MID_GRAY)
-            self.app.screen.blit(hint, (rect.x + 10, rect.bottom - 18))
-            pygame.display.flip()
-            clock.tick(30)
-
-    def _ask_name(self, prompt):
-        W, H = self.app.screen.get_width(), self.app.screen.get_height()
-        rect = pygame.Rect(W // 2 - 300, H // 2 - 40, 600, 80)
-        inp = TextInput((rect.x + 10, rect.y + 40, rect.width - 20, 30), prompt="", font_size=17)
-        clock = pygame.time.Clock()
-
-        while not inp.done:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return None
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    return None
-                inp.handle_event(event)
-
-            overlay = pygame.Surface((W, H), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 180))
-            self.app.screen.blit(overlay, (0, 0))
-            pygame.draw.rect(self.app.screen, DARK_GRAY, rect, border_radius=6)
-            pygame.draw.rect(self.app.screen, GOLD, rect, 2, border_radius=6)
-            draw_text(self.app.screen, prompt, rect.x + 10, rect.y + 10, 16, YELLOW, bold=True)
-            inp.draw(self.app.screen)
-            pygame.display.flip()
-            clock.tick(30)
-
-        return inp.text.strip() or None
-
+    # ── Bucle ─────────────────────────────────────────────────────────────
     def update(self, dt):
         if self._pending_continue:
             self._pending_continue = False
             self._seleccionar_siguiente_personaje()
-            return
-        mp = pygame.mouse.get_pos()
-        for btn in self.buttons:
-            btn.update_hover(mp)
 
     def draw(self, surf):
+        W, H = surf.get_size()
         surf.fill(C_FONDO)
-        self._draw_header(surf)
+        dibujar_cabecera(surf)
+        t = "AVENTURAS"
+        draw_text(surf, t, W // 2 - len(t) * 9, 190, 30, C_SUBTITULO, bold=True)
+        s = "Empieza una nueva aventura en un dungeon, carga una partida guardada o elimínala"
+        draw_text(surf, s, W // 2 - len(s) * 4, 240, 14, C_TEXTO_DIM)
+        for r, (t, f) in zip(self._rects(), self.botones):
+            boton(surf, r, t, 16, color=C_ERROR if t == "ELIMINAR" else None)
 
-        W = surf.get_width()
-        draw_text(surf, "GESTIÓN DE PARTIDAS", W // 2 - 150, 190, 28, C_SUBTITULO, bold=True)
-        draw_text(surf, "Inicia nuevas aventuras, carga partidas guardadas o elimínalas",
-                  W // 2 - 280, 240, 14, C_TEXTO_DIM, max_width=560)
 
-        for btn in self.buttons:
-            btn.draw(surf)
-
-    def _draw_header(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "WARHAMMER", W // 2 - 180, 40, 60, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_TITULO, (60, 130), (W - 60, 130), 2)
+def dibujar_cabecera(surf):
+    W = surf.get_width()
+    from ui_utils import get_font
+    f = get_font(54, True)
+    s = f.render(TITLE, True, C_TITULO)
+    if s.get_width() > W - 120:
+        f = get_font(40, True)
+        s = f.render(TITLE, True, C_TITULO)
+    surf.blit(s, (W // 2 - s.get_width() // 2, 40))
+    pygame.draw.line(surf, C_TITULO, (60, 130), (W - 60, 130), 2)

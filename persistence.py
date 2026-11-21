@@ -12,12 +12,16 @@ from constants import PERSONAJES_DIR, SAVES_DIR, DUNGEONS_DIR
 # ══════════════════════════════════════════════════════════════════════════════
 
 def guardar_personaje(personaje: Personaje):
-    """Guarda un personaje en un archivo JSON."""
+    """Guarda un personaje en un archivo JSON (sustituye la versión anterior del mismo id)."""
     if personaje.numero == 0:
         personaje.numero = obtener_siguiente_numero_personaje()
-    
-    nombre_base = personaje.nombre.replace(" ", "_").replace("/", "-")
+
+    nombre_base = "".join(c if c.isalnum() or c in "-_" else "_" for c in personaje.nombre) or "personaje"
     path = os.path.join(PERSONAJES_DIR, f"{nombre_base}_{personaje.id}.json")
+    # si cambió el nombre, borra el archivo antiguo con el mismo id
+    for fname in os.listdir(PERSONAJES_DIR):
+        if fname.endswith(f"_{personaje.id}.json") and os.path.join(PERSONAJES_DIR, fname) != path:
+            os.remove(os.path.join(PERSONAJES_DIR, fname))
     
     with open(path, "w", encoding="utf-8") as f:
         json.dump(personaje.to_dict(), f, ensure_ascii=False, indent=2)
@@ -44,7 +48,7 @@ def cargar_personaje(personaje_id: str) -> Personaje:
     raise FileNotFoundError(f"Personaje con ID {personaje_id} no encontrado")
 
 
-def listar_personajes() -> list[dict]:
+def listar_personajes():
     """Devuelve lista de todos los personajes."""
     result = []
     
@@ -62,7 +66,7 @@ def listar_personajes() -> list[dict]:
                     "numero": d.get("numero", 0),
                     "nombre": d.get("nombre", "?"),
                     "raza": d.get("raza", "?"),
-                    "profesion": d.get("profesion", "?"),
+                    "profesion": d.get("subclase") or d.get("clase") or d.get("profesion", "?"),
                     "fecha_creacion": d.get("fecha_creacion", "?"),
                 })
             except Exception:
@@ -75,11 +79,9 @@ def listar_personajes() -> list[dict]:
 def eliminar_personaje(personaje_id: str):
     """Elimina un personaje."""
     for fname in os.listdir(PERSONAJES_DIR):
-        if fname.endswith(".json") and personaje_id in fname:
-            path = os.path.join(PERSONAJES_DIR, fname)
-            if os.path.exists(path):
-                os.remove(path)
-                return
+        if fname.endswith(f"_{personaje_id}.json"):
+            os.remove(os.path.join(PERSONAJES_DIR, fname))
+            return
 
 
 def obtener_siguiente_numero_personaje() -> int:
@@ -103,7 +105,7 @@ def obtener_siguiente_numero_personaje() -> int:
 # SECCIÓN 2 — OPERACIONES CON DUNGEONS (solo lectura)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def listar_dungeons() -> list[dict]:
+def listar_dungeons():
     """Devuelve lista de dungeons disponibles para jugar."""
     result = []
     
@@ -158,7 +160,7 @@ def guardar_partida(partida: Partida, dungeon: Dungeon):
     return path
 
 
-def listar_nombres_partidas() -> list[str]:
+def listar_nombres_partidas():
     """Devuelve lista de nombres de partidas."""
     result = []
     
@@ -173,7 +175,7 @@ def listar_nombres_partidas() -> list[str]:
     return result
 
 
-def listar_guardados_partida(nombre_partida: str) -> list[dict]:
+def listar_guardados_partida(nombre_partida: str):
     """Lista todos los guardados de una partida."""
     save_dir = os.path.join(SAVES_DIR, nombre_partida)
     result = []
@@ -196,11 +198,11 @@ def listar_guardados_partida(nombre_partida: str) -> list[dict]:
             except Exception:
                 pass
     
-    result.sort(key=lambda x: x["fecha_guardado"], reverse=True)
+    result.sort(key=lambda x: os.path.basename(x["path"]).split("_", 1)[-1], reverse=True)
     return result
 
 
-def cargar_guardado(path: str) -> tuple[Partida, Dungeon]:
+def cargar_guardado(path: str):
     """Carga una partida y reconstruye el dungeon desde el snapshot."""
     with open(path, "r", encoding="utf-8") as f:
         d = json.load(f)
@@ -216,4 +218,4 @@ def eliminar_partida(nombre_partida: str):
     import shutil
     save_dir = os.path.join(SAVES_DIR, nombre_partida)
     if os.path.isdir(save_dir):
-        shutil.rmtree(save_dir)
+        shutil.rmtree(save_dir)

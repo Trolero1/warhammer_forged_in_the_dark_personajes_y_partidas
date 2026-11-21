@@ -1,31 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WARHAMMER FORGED IN THE DARK - Gestor de Personajes y Partidas para el juego de rol de mesa warhammer fantasy en versión Forged in the Dark
-Carga dungeons creados con el Editor de Dungeons.
+FORGED IN THE DARK FANTASY - Juego de rol de ordenador al estilo de los dungeon crawlers
+en primera persona de finales de los 80 (The Bard's Tale, Might and Magic, Eye of the
+Beholder), con el reglamento FORGED IN THE DARK FANTASY.
+Carga dungeons creados con el Editor de Dungeons (carpeta data/dungeons).
 """
 
-from screens.screen_main import ScreenMain
-from constants import SCREEN_W, SCREEN_H, TITLE, FPS
-import pygame
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import pygame
+from constants import SCREEN_W, SCREEN_H, TITLE, FPS
+from screens.screen_main import ScreenMain
 
-class WarhammerGame:
+
+class FantasyGame:
     def __init__(self):
         pygame.init()
         try:
             pygame.mixer.init()
         except Exception:
             pass
-        pygame.freetype.init()
 
         self.screen = pygame.display.set_mode(
             (SCREEN_W, SCREEN_H), pygame.RESIZABLE)
-        pygame.display.set_caption(TITLE + " - Juego")
+        pygame.display.set_caption(TITLE)
+        pygame.key.start_text_input()
 
         self.clock = pygame.time.Clock()
         self.running = True
@@ -40,11 +43,11 @@ class WarhammerGame:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode(
-                        (event.w, event.h), pygame.RESIZABLE)
+                    self.screen = pygame.display.get_surface()
                 else:
                     self.current_screen.handle_event(event)
 
+            self.screen = pygame.display.get_surface()
             self.current_screen.update(dt)
             self.current_screen.draw(self.screen)
             pygame.display.flip()
@@ -54,5 +57,5 @@ class WarhammerGame:
 
 
 if __name__ == "__main__":
-    game = WarhammerGame()
+    game = FantasyGame()
     game.run()

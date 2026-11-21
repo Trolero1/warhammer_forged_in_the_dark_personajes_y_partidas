@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Warhammer Forged in the Dark — Standalone entry point.
-Delega en el módulo screens para el creador de personajes.
-
-Puedes ejecutar este archivo directamente para abrir el creador
-o usar main.py para el programa completo con dungeons y partidas.
+Punto de entrada alternativo (se mantiene por compatibilidad): arranca el
+mismo programa que main.py.
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from main import WarhammerGame
+from main import FantasyGame
 
 if __name__ == "__main__":
-    game = WarhammerGame()
+    game = FantasyGame()
     game.run()

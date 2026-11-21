@@ -1,4 +1,4 @@
-# constants.py - Configuración global
+# constants.py - Configuración global de FORGED IN THE DARK FANTASY
 
 import os
 
@@ -10,15 +10,16 @@ PERSONAJES_DIR = os.path.join(DATA_DIR, "personajes")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 AUDIO_DIR = os.path.join(ASSETS_DIR, "audio")
+RETRATOS_DIR = os.path.join(IMAGES_DIR, "retratos")   # retratos opcionales de personajes
 
-for d in (DUNGEONS_DIR, SAVES_DIR, PERSONAJES_DIR):
+for d in (DUNGEONS_DIR, SAVES_DIR, PERSONAJES_DIR, RETRATOS_DIR):
     os.makedirs(d, exist_ok=True)
 
 # Pantalla
 SCREEN_W = 1400
 SCREEN_H = 900
 FPS = 60
-TITLE = "WARHAMMER FORGED IN THE DARK"
+TITLE = "FORGED IN THE DARK FANTASY"
 
 # Colores base
 BLACK = (0, 0, 0)
@@ -35,7 +36,7 @@ LIGHT_GRAY = (200, 200, 200)
 GOLD = (212, 175, 55)
 DEEP_RED = (120, 20, 20)
 
-# Colores Dragonbane
+# Colores de la interfaz (pergamino y cuero)
 C_FONDO = (26, 16, 8)
 C_PANEL = (42, 28, 14)
 C_TITULO = (200, 146, 42)
@@ -58,4 +59,4 @@ ROOM_FILL = (60, 60, 60)
 ROOM_BORDER = (200, 200, 200)
 BG_MAP = (10, 10, 10)
 BG_PANEL = (5, 5, 15)
-BG_TEXT = (5, 5, 5)
+BG_TEXT = (5, 5, 5)

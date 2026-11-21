@@ -2,70 +2,51 @@
 
 import pygame
 from constants import *
-from ui_utils import get_font, draw_text, Button
-from screens.screen_personajes import ScreenPersonajesManager
-from screens.screen_partidas import ScreenPartidasManager
+from ui_utils import draw_text
+from formularios import boton
 
 
 class ScreenMain:
     def __init__(self, app):
         self.app = app
-        W = app.screen.get_width()
-        
-        btn_w, btn_h, gap = 220, 60, 24
-        total_w = 3 * btn_w + 2 * gap
-        start_x = W // 2 - total_w // 2
-        
-        self.btn_personajes = Button((start_x, 380, btn_w, btn_h),
-                                     "👥  PERSONAJES", font_size=18, bold=True)
-        self.btn_partidas = Button((start_x + btn_w + gap, 380, btn_w, btn_h),
-                                   "🎲  PARTIDAS", font_size=18, bold=True)
-        self.btn_salir = Button((start_x + 2 * (btn_w + gap), 380, btn_w, btn_h),
-                                "🚪  SALIR", font_size=18, bold=True,
-                                color=C_ERROR)
-        
-        self.buttons = [self.btn_personajes, self.btn_partidas, self.btn_salir]
-        self.active_screen = None
-    
+        self.botones = [("PERSONAJES", self._personajes), ("AVENTURAS", self._partidas), ("SALIR", self._salir)]
+
+    def _rects(self):
+        W, H = self.app.screen.get_size()
+        bw, bh, gap = 240, 60, 24
+        x0 = W // 2 - (len(self.botones) * bw + (len(self.botones) - 1) * gap) // 2
+        return [pygame.Rect(x0 + i * (bw + gap), 380, bw, bh) for i in range(len(self.botones))]
+
+    def _personajes(self):
+        from screens.screen_personajes import ScreenPersonajesManager
+        self.app.current_screen = ScreenPersonajesManager(self.app)
+
+    def _partidas(self):
+        from screens.screen_partidas import ScreenPartidasManager
+        self.app.current_screen = ScreenPartidasManager(self.app)
+
+    def _salir(self):
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
+
     def handle_event(self, event):
-        if self.active_screen:
-            self.active_screen.handle_event(event)
-            if hasattr(self.active_screen, 'closed') and self.active_screen.closed:
-                self.active_screen = None
-            return
-        
-        if self.btn_personajes.handle_event(event):
-            self.active_screen = ScreenPersonajesManager(self.app)
-        elif self.btn_partidas.handle_event(event):
-            self.active_screen = ScreenPartidasManager(self.app)
-        elif self.btn_salir.handle_event(event):
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
-    
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for r, (t, f) in zip(self._rects(), self.botones):
+                if r.collidepoint(event.pos):
+                    f()
+                    return
+
     def update(self, dt):
-        if self.active_screen:
-            self.active_screen.update(dt)
-            return
-        mp = pygame.mouse.get_pos()
-        for btn in self.buttons:
-            btn.update_hover(mp)
-    
+        pass
+
     def draw(self, surf):
-        if self.active_screen:
-            self.active_screen.draw(surf)
-            return
-        
+        from screens.screen_partidas import dibujar_cabecera
+        W, H = surf.get_size()
         surf.fill(C_FONDO)
-        self._draw_header(surf)
-        
-        W = surf.get_width()
-        draw_text(surf, "Sistema de juego Warhammer Forged in the Dark", W // 2 - 180, 190, 18, C_SUBTITULO, bold=True)
-        draw_text(surf, "Crea personajes y juega partidas usando dungeons personalizados",
-                  W // 2 - 280, 230, 14, C_TEXTO_DIM, max_width=560)
-        
-        for btn in self.buttons:
-            btn.draw(surf)
-    
-    def _draw_header(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "WARHAMMER", W // 2 - 180, 40, 60, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_TITULO, (60, 130), (W - 60, 130), 2)
+        dibujar_cabecera(surf)
+        for i, t in enumerate(["Un juego de rol de fantasía con el sistema Forged in the Dark",
+                               "Crea personajes y explora dungeons en primera persona, casilla a casilla"]):
+            draw_text(surf, t, W // 2 - len(t) * 4 - (len(t) // 2 if i == 0 else 0), 190 + i * 36,
+                      18 if i == 0 else 14, C_SUBTITULO if i == 0 else C_TEXTO_DIM, bold=(i == 0))
+        for r, (t, f) in zip(self._rects(), self.botones):
+            boton(surf, r, t, 18, color=C_ERROR if t == "SALIR" else None)
+        draw_text(surf, "Basado en Blades in the Dark (John Harper / One Seven Design)", 20, H - 28, 11, C_TEXTO_DIM)

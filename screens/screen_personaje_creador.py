@@ -1,1394 +1,590 @@
 # screens/screen_personaje_creador.py
-# Creador de Personajes — WARHAMMER FORGED IN THE DARK
+# Creador de personajes según el reglamento FORGED IN THE DARK FANTASY (capítulo 1)
+#
+# Todas las elecciones se guardan en el diccionario self.datos. Las habilidades
+# NO se suman paso a paso: se recalculan desde cero con reglas.calcular_habilidades,
+# así el botón "Atrás" nunca duplica puntos.
 
+import os
 import pygame
 from constants import *
-from ui_utils import get_font, draw_text, Button, TextInput, ScrollArea, Checkbox
-from models import Personaje, TODAS_LAS_HABILIDADES, HABILIDADES_POR_ATRIBUTO
+from ui_utils import draw_text
+import reglas
+from reglas import (RAZAS, CLASES, TIPOS_MAGIA, TODAS_LAS_HABILIDADES, HABILIDADES_POR_ATRIBUTO,
+                    NOMBRE_ATRIBUTO, ETAPAS_TRASFONDO)
+from formularios import (Formulario, Titulo, Info, Opciones, Multi, Check, Texto, Sugerencias,
+                         Fila, Separador, Espacio, boton, texto_ajustado)
+from models import Personaje
 import persistence
 
 
-RAZAS = ["Humano", "Halfling", "Enano", "Alto Elfo", "Elfo de los bosques"]
-
-CARACTERISTICAS = {
-    "Humano":      "Dos puntos de habilidad a repartir entre las habilidades, pero no los dos en la misma.",
-    "Halfling":    "Visión mejorada, un punto en sigilo o en cazar, 1d6 más para resistir contra magia y venenos",
-    "Enano":       "Visión en la oscuridad, un punto en destruir o en trastear, 1d6 más para resistir contra magia y venenos",
-    "Alto Elfo":   "Visión mejorada y un punto en mover o en sobrenatural",
-    "Elfo de los bosques":  "Visión mejorada y un punto en mover o en cazar",
-}
-
-BONOS_RAZA = {
-    "Humano":      {"tipo": "elegir", "cantidad": 2, "habilidades": TODAS_LAS_HABILIDADES, "max_por_habilidad": 1},
-    "Halfling":    {"tipo": "elegir", "cantidad": 1, "habilidades": ["sigilo", "cazar"]},
-    "Enano":       {"tipo": "elegir", "cantidad": 1, "habilidades": ["destruir", "trastear"]},
-    "Alto Elfo":   {"tipo": "elegir", "cantidad": 1, "habilidades": ["mover", "sobrenatural"]},
-    "Elfo de los bosques": {"tipo": "elegir", "cantidad": 1, "habilidades": ["mover", "cazar"]},
-}
-
-PROFESIONES = {
-    "Guerrero": {
-        "bonos": [("mover", None), (None, ["luchar", "destruir"])],
-        "apodos": ["Fabricatumbas", "Mandíbulagris", "Deshielosviento", "Acerofrio", "ElSinMiedo", "ElCarnicero"],
-    },
-    "Explorador": {
-        "bonos": [("cazar", None), (None, ["mover", "sigilo"])],
-        "apodos": ["ZorroDelBosque", "Matalobo", "Explorador", "ElCurtido", "Hambredesangre", "Flechadesombra"],
-    },
-    "Ladrón": {
-        "bonos": [("sigilo", None), (None, ["cazar", "mover"])],
-        "apodos": ["MedioDedo", "RataNegra", "OjoRojo", "PiesRápidos", "DobleLengua", "PuñalNocturno"],
-    },
-    "Comerciante": {
-        "bonos": [("trastear", None), ("influir", None)],
-        "apodos": ["SonrisaDePlata", "DienteDeOro", "LenguaDeSeda", "ElCeceosoYVeridico", "PanzaGorda", "Tacaño"],
-    },
-    "Bardo": {
-        "bonos": [("socializar", None), ("sigilo", None)],
-        "apodos": ["Hacedordeodas", "Hilacuentos", "Vozdeargento", "Clavededorado", "Lenguademiel", "Forjadorderrimas"],
-    },
-    "Mago": {
-        "bonos": [("sobrenatural", None), ("estudiar", None)],
-        "apodos": ["CorazónRaíz", "EspaldalaTorcida", "CapaGris", "ManoDeTormenta", "BastónCojo", "InvocadorDeSombras"],
-    },
-    "Clérigo": {
-        "bonos": [("sobrenatural", None), (None, TODAS_LAS_HABILIDADES)],
-        "apodos": ["MenteClara", "PulmónDePolvo", "VistaLarga", "ElLetrado", "ElOmnisciente", "ElGordoYErudito"],
-    },
-}
-
-ORIGENES = {
-    "Nobles": {"habilidad": "liderar", "desc": "+1 liderar"},
-    "Comerciantes": {"habilidad": "influir", "desc": "+1 influir"},
-    "Pobres": {"habilidad": "mover", "desc": "+1 mover"},
-}
-
-NINEZ = {
-    "Fuerza": {"habilidad": "destruir", "desc": "+1 destruir"},
-    "Carisma": {"habilidad": "socializar", "desc": "+1 socializar"},
-    "Intuición": {"habilidad": "percibir", "desc": "+1 percibir"},
-}
-
-ADOLESCENCIA = {
-    "Entrenaste con armas": {"habilidad": "luchar", "desc": "+1 luchar"},
-    "Aprendiste a leer y escribir": {"habilidad": None, "desc": "Sabes leer y escribir"},
-    "Cazabas animales": {"habilidad": "cazar", "desc": "+1 cazar"},
-}
-
-JUVENTUD = {
-    "Taller o herrería": {"habilidad": "trastear", "desc": "+1 trastear"},
-    "Fuiste un ladrón": {"habilidad": "sigilo", "desc": "+1 sigilo"},
-    "Poder extraño": {"habilidad": "sobrenatural", "desc": "+1 sobrenatural"},
-    "Estudiaste con tu maestro": {"habilidad": "estudiar", "desc": "+1 estudiar"},
-}
-
-EDADES = {
-    "Joven": {"atributo": "CUE", "desc": "Un punto en una habilidad de Cuerpo"},
-    "Adulto": {"atributo": "VOL", "desc": "Un punto en una habilidad de Voluntad"},
-    "Anciano": {"atributo": "INT", "desc": "Un punto en una habilidad de Inteligencia"},
-}
-
-DEBILIDADES = [
-    "Crédulo: me creo todo lo que me dicen.",
-    "Codicioso: quiero una mayor parte de todo el tesoro.",
-    "Susceptible: nunca tolero una provocación.",
-    "Temerario: siempre voy el primero al peligro.",
-    "Cobardón: siempre me quedo en la retaguardia.",
-    "Cazamonstruos: todos los monstruos son malvados y deben ser eliminados.",
-    "Intolerante: los nightkin como los orcos o goblins son malvados.",
-    "Perezoso: aprovecho cualquier oportunidad para descansar.",
-    "Glotón: aprovecho cualquier oportunidad para comer algo sabroso.",
-    "Cleptómano: no puedo evitar robar objetos de valor.",
-    "Vanidoso: ayudo a cualquiera que me alabe.",
-    "Imprudente: siempre asumo grandes riesgos sin pensar en las consecuencias.",
-    "Miedo a la magia: la magia es una fuerza maligna y los magos no son de fiar.",
-    "Sed de conocimiento: la búsqueda del conocimiento importa más que mis amigos.",
-    "Hijo de la naturaleza: nunca duermo bajo techo.",
-    "Fanfarrón: siempre exagero mis logros.",
-    "Violento: recurro a la violencia ante cualquier obstáculo.",
-    "Dominante: siempre digo a los demás lo que deben hacer.",
-    "Cínico: siempre pienso que las cosas saldrán mal.",
-    "Arrogante: menosprecio a todo el que me encuentro.",
-]
-
-RECUERDOS = [
-    "Tus viejos zapatos de confianza",
-    "Un sencillo medallón de plata",
-    "Una carta de un viejo amigo o familiar",
-    "Un viejo diario deshilachado",
-    "Un brazalete heredado de tu familia",
-    "Una figurilla de madera que tenías de niño",
-    "Una piedra de forma extraña",
-    "Una moneda de cobre de un tesoro que buscaban tu madre o tu padre",
-    "Una vieja jarra de peltre",
-    "Un cuerno arrancado como trofeo a un monstruo",
-    "Un colmillo tomado como trofeo de una bestia",
-    "Un par de dados simples hechos de hueso",
-    "Un medallón que contiene un mechón de pelo",
-    "Una llave ornamentada",
-    "Un mapa dibujado a mano que heredaste",
-    "Un anillo con una inscripción",
-    "Un silbato de hueso",
-    "El viejo sombrero deshilachado de tu madre o padre",
-    "Una pluma de grifo",
-    "Una pipa bellamente tallada",
-]
-
-DETALLES_ASPECTO = [
-    "Una fea cicatriz en la mejilla",
-    "Un sombrero extraño",
-    "Anormalmente pálido y pastoso",
-    "Una sonrisa constante en los labios",
-    "Una mirada fría y penetrante",
-    "Un poco de sobrepeso en la cintura",
-    "Delgado y enjuto",
-    "Cantidad anormal de vello corporal",
-    "Calvo",
-    "Tatuaje prominente",
-    "Olor corporal desagradable",
-    "Peinado glorioso",
-    "Cojera",
-    "Sucio",
-    "Ojos azules honestos",
-    "Diente de plata",
-    "Muy perfumado",
-    "Ojos de diferente color",
-    "Voz sibilante",
-    "Cara curtida por la intemperie",
-]
-
-MOTIVACIONES = ["Riquezas", "Conocimiento", "Poder", "Venganza", "Explorar", "Amistad", "Justicia"]
-VICIOS = ["Juego", "Alcohol", "Sexo", "Drogas", "Lujo", "Obligación"]
+def _hab_label(h, habs):
+    v = habs.get(h, 0)
+    return f"{h} ({v})" if v else h
 
 
-def text_size(text, size, bold=False):
-    font = get_font(size, bold=bold)
-    return font.size(text)
+def lista_retratos():
+    if not os.path.isdir(RETRATOS_DIR):
+        return []
+    return sorted(f for f in os.listdir(RETRATOS_DIR)
+                  if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp")))
 
 
-class ScreenElegirHabilidades:
-    def __init__(self, creator, titulo, descripcion, habilidades_posibles, cantidad,  max_por_habilidad=1, max_nivel_creacion=3):
-        self.creator = creator
-        self.scroll = ScrollArea()
+# ══════════════════════════════════════════════════════════════════════════════
+# PASOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+class Paso:
+    def __init__(self, titulo, builder, validar=None, visible=None, al_entrar=None):
         self.titulo = titulo
-        self.descripcion = descripcion
-        self.habilidades_posibles = habilidades_posibles
-        self.cantidad = cantidad
-        self.max_por_habilidad = max_por_habilidad
-        self.max_nivel = max_nivel_creacion
-        self.seleccion = {}
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols = min(4, len(habilidades_posibles))
-        cols = max(1, cols)
-        cb_w = min(220, (W - 160) // cols)
-        start_x = W // 2 - (cols * cb_w) // 2
-        self.checks = []
-        for i, hab in enumerate(habilidades_posibles):
-            col, row = i % cols, i // cols
-            x = start_x + col * cb_w
-            y = 280 + row * 36
-            actual = creator.personaje.habilidades.get(hab, 0)
-            label = f"{hab} ({actual})" if actual > 0 else hab
-            cb = Checkbox(x, y, label, font_size=13, max_label_w=cb_w - 10)
-            self.checks.append((cb, hab))
-        num_filas = ((len(habilidades_posibles) - 1) // cols + 1)
-        botones_y = 280 + num_filas * 36 + 40
-        self.btn_atras = Button((W // 2 - 220, botones_y, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, botones_y, 180, 44), "Siguiente", color=C_BOTON_HOV)
-        self.scroll.set_content_height(botones_y + 100, creator.app.screen.get_height() - 120)
+        self.builder = builder
+        self.validar = validar or (lambda d: None)
+        self.visible = visible or (lambda d: True)
+        self.al_entrar = al_entrar
 
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for cb, hab in self.checks:
-            if cb.handle_event(event, self.scroll.offset):
-                if cb.checked:
-                    total_seleccionado = sum(self.seleccion.values())
-                    if total_seleccionado >= self.cantidad:
-                        cb.checked = False
-                    else:
-                        actual_en_habilidad = self.seleccion.get(hab, 0)
-                        if actual_en_habilidad >= self.max_por_habilidad:
-                            cb.checked = False
-                        else:
-                            self.seleccion[hab] = actual_en_habilidad + 1
-                else:
-                    self.seleccion[hab] = max(0, self.seleccion.get(hab, 0) - 1)
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            total = sum(self.seleccion.values())
-            if total != self.cantidad:
-                self.error = f"Debes elegir exactamente {self.cantidad} puntos. Has asignado {total}."
-            else:
-                for hab, pts in self.seleccion.items():
-                    if pts > 0:
-                        actual = self.creator.personaje.habilidades.get(hab, 0)
-                        nuevo = actual + pts
-                        if nuevo > self.max_nivel:
-                            self.error = f"{hab} no puede superar nivel {self.max_nivel} al crear el personaje."
-                            return
-                        self.creator.personaje.habilidades[hab] = nuevo
-                self.creator.go_next()
 
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for cb, _ in self.checks:
-            cb.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
+# ── 1. Raza ───────────────────────────────────────────────────────────────────
+def _raza_elegida(d, v):
+    if v != "Humano":
+        d["bono_raza"] = []
+    if not reglas.puede_usar_arcana(v) and d.get("tipo_magia") == "arcana":
+        d["tipo_magia"], d["subclase"] = "", ""
 
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, self.titulo, W // 2 - len(self.titulo) * 6, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        total = sum(self.seleccion.values())
-        draw_text(surf, f"{self.descripcion}  (Asignados: {total}/{self.cantidad})",
-                  80, 250, 13, C_TEXTO_DIM, max_width=W - 160)
-        for cb, _ in self.checks:
-            cb.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, 80, self.btn_atras.rect.y - 24 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
 
+def b_raza(d):
+    c = [Info("Elige la raza de tu personaje."),
+         Opciones("raza", "", list(RAZAS), cols=5, alto_boton=44, size=15, al_elegir=_raza_elegida)]
+    if d.get("raza"):
+        c.append(Info(RAZAS[d["raza"]]["desc"], 13, C_SUBTITULO))
+    if d.get("raza") == "Humano":
+        habs = reglas.calcular_habilidades({**d, "bono_raza": []})
+        c += [Separador(),
+              Multi("bono_raza", "Bono humano: elige DOS habilidades distintas (+1 cada una)",
+                    [(h, _hab_label(h, habs)) for h in TODAS_LAS_HABILIDADES], maximo=2, cols=4)]
+    return c
+
+
+def v_raza(d):
+    if not d.get("raza"):
+        return "Debes elegir una raza."
+    if d["raza"] == "Humano" and len(d.get("bono_raza") or []) != 2:
+        return "Un humano debe elegir dos habilidades distintas."
+    if "sobrenatural" in (d.get("bono_raza") or []) and d.get("clase") != "Extraño":
+        pass  # se comprueba con el permiso del DJ en el paso de trasfondo
+    return None
+
+
+# ── 2. Clase ──────────────────────────────────────────────────────────────────
+def _clase_elegida(d, v):
+    d["eleccion_clase"] = ""
+    if v != "Extraño":
+        d["tipo_magia"], d["subclase"], d["habilidad_divina"] = "", "", ""
+
+
+def _tipo_elegido(d, v):
+    subs = TIPOS_MAGIA[v]["subclases"]
+    d["subclase"] = subs[0] if len(subs) == 1 else ""
+    d["habilidad_divina"] = "influir" if v == "divina" else ""
+
+
+def b_clase(d):
+    c = [Info("Elige la clase de tu personaje."),
+         Opciones("clase", "", list(CLASES), cols=3, alto_boton=42, size=15, al_elegir=_clase_elegida)]
+    clase = d.get("clase")
+    if not clase:
+        return c
+    info = CLASES[clase]
+    c.append(Info(f"Arquetipo: {info['arquetipo']}. {info['desc']}", 13, C_SUBTITULO))
+    if info["elegir"]:
+        c += [Separador(), Opciones("eleccion_clase", "Elige tu segundo punto"
+                                    + (" (será tu habilidad de clase)" if not info["clase"] else ""),
+                                    info["elegir"], cols=2)]
+    if clase == "Extraño":
+        arcana_ok = reglas.puede_usar_arcana(d.get("raza", ""))
+        c += [Separador(),
+              Opciones("tipo_magia", "Tipo de poder sobrenatural",
+                       [(k, v["nombre"]) for k, v in TIPOS_MAGIA.items()], cols=3,
+                       deshabilitadas=() if arcana_ok else ("arcana",), al_elegir=_tipo_elegido)]
+        if not arcana_ok:
+            c.append(Info("Los enanos y los halflings no pueden usar magia arcana.", 12, C_TEXTO_DIM))
+        tipo = d.get("tipo_magia")
+        if tipo:
+            seg = TIPOS_MAGIA[tipo]["segunda"]
+            c.append(Info(f"Un punto en sobrenatural y otro en {seg}. "
+                          "En mecánica no hay diferencias entre subclases: es algo narrativo.", 12))
+            c.append(Opciones("subclase", "Subclase", TIPOS_MAGIA[tipo]["subclases"], cols=3))
+            if tipo == "divina":
+                c += [Texto("deidad", "Deidad o credo", "Nombre de tu dios o credo"),
+                      Opciones("habilidad_divina", "Tu dios otorga un punto en (por defecto influir):",
+                               [h for h in TODAS_LAS_HABILIDADES if h != "sobrenatural"], cols=6,
+                               alto_boton=28, size=11)]
+    return c
+
+
+def v_clase(d):
+    clase = d.get("clase")
+    if not clase:
+        return "Debes elegir una clase."
+    if CLASES[clase]["elegir"] and not d.get("eleccion_clase"):
+        return "Elige tu segundo punto de clase."
+    if clase == "Extraño":
+        if not d.get("tipo_magia"):
+            return "Elige el tipo de poder sobrenatural."
+        if d["tipo_magia"] == "arcana" and not reglas.puede_usar_arcana(d.get("raza", "")):
+            return "Tu raza no puede usar magia arcana."
+        if not d.get("subclase"):
+            return "Elige la subclase."
+    e = reglas.errores_creacion(d)
+    return e[0] if e else None
+
+
+# ── 3. Edad ───────────────────────────────────────────────────────────────────
+def b_edad(d):
+    c = [Texto("edad", "Edad en años", "Ej.: 25", max_len=4, solo_numeros=True)]
+    if d.get("raza") == "Humano":
+        try:
+            et = reglas.etapa_humana(int(d.get("edad") or 0))
+            d["etapa"] = et
+            c.append(Info(f"Etapa: {et.upper()}  (humano: joven 18-30, adulto 31-60, anciano 61+)",
+                          14, C_SUBTITULO, True))
+        except ValueError:
+            pass
+    else:
+        c += [Info("Para razas no humanas, joven, adulto o anciano se decide según la edad media de "
+                   "esa raza comparada con la humana. Elige la etapa:", 12, C_TEXTO_DIM),
+              Opciones("etapa", "Etapa de la vida", reglas.ETAPAS_EDAD, cols=3)]
+    if d.get("etapa"):
+        c.append(Info(reglas.DESC_ETAPA[d["etapa"]], 13))
+    return c
+
+
+def v_edad(d):
+    if not str(d.get("edad") or "").strip():
+        return "Indica la edad."
+    if d.get("raza") == "Humano" and int(d["edad"]) < 18:
+        return "Las reglas no contemplan personajes menores de 18 años."
+    if not d.get("etapa"):
+        return "Elige la etapa de la vida."
+    e = reglas.errores_creacion(d)
+    return e[0] if e else None
+
+
+# ── 4-7. Trasfondo ────────────────────────────────────────────────────────────
+def hacer_paso_trasfondo(idx):
+    clave, nombre, ejemplos = ETAPAS_TRASFONDO[idx]
+    k_txt, k_hab = f"tf_{clave}_txt", f"tf_{clave}_hab"
+
+    def b(d):
+        otros = {d.get(f"tf_{c}_hab") for c, _, _ in ETAPAS_TRASFONDO if c != clave} - {None, ""}
+        habs = reglas.calcular_habilidades({**d, k_hab: ""})
+        c = [Info(f"Trasfondo ({idx + 1}/4). Cuenta esta etapa de la vida de tu personaje y elige la "
+                  "habilidad que ganó (+1). Las cuatro etapas deben dar habilidades distintas.", 12, C_TEXTO_DIM),
+             Info("Ejemplos: " + ejemplos, 12, C_SUBTITULO),
+             Texto(k_txt, f"{nombre}: ¿qué pasó?", "Escribe una frase breve...", max_len=200),
+             Opciones(k_hab, "Habilidad ganada", [(h, _hab_label(h, habs)) for h in TODAS_LAS_HABILIDADES],
+                      cols=4, deshabilitadas=otros, alto_boton=30, size=12)]
+        if d.get(k_hab):
+            c.append(Info(reglas.DESCRIPCION_HABILIDAD[d[k_hab]], 12, C_TEXTO_DIM))
+        if d.get(k_hab) == "sobrenatural" and d.get("clase") != "Extraño":
+            c.append(Check("permiso_dj_sobrenatural",
+                           "El DJ permite a este personaje (no extraño) tener un punto en sobrenatural. "
+                           "Tendrá un talento: un conjuro, oración o poder de nivel 0-1."))
+        return c
+
+    def v(d):
+        if not d.get(k_hab):
+            return "Elige la habilidad que ganó tu personaje en esta etapa."
+        if d.get(k_hab) == "sobrenatural" and d.get("clase") != "Extraño" and not d.get("permiso_dj_sobrenatural"):
+            return "Sobrenatural en un personaje no extraño necesita el permiso del DJ."
+        e = reglas.errores_creacion(d)
+        return e[0] if e else None
+
+    return Paso(f"TRASFONDO — {nombre}", b, v)
+
+
+# ── 8. Motivación y vicio ─────────────────────────────────────────────────────
+def b_motivacion(d):
+    return [Opciones("motivacion", "Motivación", reglas.MOTIVACIONES, cols=4),
+            Info("Cuenta para rolear, y esforzarte solo cuesta 1 de estrés si puedes relacionarlo "
+                 "con tu motivación.", 12, C_TEXTO_DIM),
+            Separador(),
+            Opciones("vicio", "Obsesión o vicio", reglas.VICIOS, cols=3),
+            Info("Cuenta para rolear y sirve para quitarse estrés en la fase de descanso.", 12, C_TEXTO_DIM),
+            Texto("vicio_detalle", "Detalle (opcional)", "Ej.: vino de las tierras del sur, dados...")]
+
+
+def v_motivacion(d):
+    if not d.get("motivacion"):
+        return "Elige una motivación."
+    if not d.get("vicio"):
+        return "Elige una obsesión o vicio."
+    return None
+
+
+# ── 9. Apariencia ─────────────────────────────────────────────────────────────
+def b_apariencia(d):
+    return [Fila([Texto("cabello", "Color del cabello", "Ej.: negro"),
+                  Texto("ojos", "Color de los ojos", "Ej.: grises")]),
+            Multi("rasgos", "Al menos otros dos rasgos físicos", reglas.RASGOS_APARIENCIA, cols=4),
+            Texto("rasgo_extra", "Otro rasgo propio (opcional)", "Ej.: una oreja mordida")]
+
+
+def _rasgos(d):
+    r = list(d.get("rasgos") or [])
+    if str(d.get("rasgo_extra") or "").strip():
+        r.append(d["rasgo_extra"].strip())
+    return r
+
+
+def v_apariencia(d):
+    if not str(d.get("cabello") or "").strip() or not str(d.get("ojos") or "").strip():
+        return "Indica el color del cabello y de los ojos."
+    if len(_rasgos(d)) < 2:
+        return "Elige al menos dos rasgos físicos."
+    return None
+
+
+# ── 10. Personalidad ──────────────────────────────────────────────────────────
+def b_personalidad(d):
+    return [Info("Estos rasgos no tienen consecuencias mecánicas sino narrativas: tenlos en cuenta "
+                 "para interpretar al personaje.", 12, C_TEXTO_DIM),
+            Multi("personalidad", "Al menos dos rasgos de personalidad", reglas.RASGOS_PERSONALIDAD, cols=4),
+            Texto("personalidad_extra", "Otro rasgo propio (opcional)", "Ej.: supersticioso")]
+
+
+def _personalidad(d):
+    r = list(d.get("personalidad") or [])
+    if str(d.get("personalidad_extra") or "").strip():
+        r.append(d["personalidad_extra"].strip())
+    return r
+
+
+def v_personalidad(d):
+    return None if len(_personalidad(d)) >= 2 else "Elige al menos dos rasgos de personalidad."
+
+
+# ── 11. Recuerdos, amigos y enemigos ──────────────────────────────────────────
+def b_recuerdos(d):
+    return [Info("Dos pequeños objetos de su pasado, de valor sentimental.", 12, C_TEXTO_DIM),
+            Fila([Texto("recuerdo1", "Recuerdo 1", "Ej.: un medallón"),
+                  Texto("recuerdo2", "Recuerdo 2", "Ej.: un silbato")]),
+            Sugerencias("Sugerencias (pulsa para usar):", reglas.RECUERDOS_SUGERIDOS, ["recuerdo1", "recuerdo2"], cols=4),
+            Separador(),
+            Info("Dos amigos y dos enemigos, intentando relacionarlos con el trasfondo.", 12, C_TEXTO_DIM),
+            Fila([Texto("amigo1", "Amigo 1", "Nombre y quién es"), Texto("amigo2", "Amigo 2", "")]),
+            Fila([Texto("enemigo1", "Enemigo 1", "Nombre y por qué"), Texto("enemigo2", "Enemigo 2", "")]),
+            Texto("lazos", "Lazos con otros personajes del grupo (opcional)", "Ej.: hermano de armas de...")]
+
+
+def v_recuerdos(d):
+    for k, n in [("recuerdo1", "dos recuerdos"), ("recuerdo2", "dos recuerdos"), ("amigo1", "dos amigos"),
+                 ("amigo2", "dos amigos"), ("enemigo1", "dos enemigos"), ("enemigo2", "dos enemigos")]:
+        if not str(d.get(k) or "").strip():
+            return f"Debes indicar {n}."
+    return None
+
+
+# ── 12. Talentos ──────────────────────────────────────────────────────────────
+def _n_talentos(d):
+    return reglas.talentos_iniciales(d)
+
+
+def b_talentos(d):
+    n = _n_talentos(d)
+    c = []
+    if d.get("clase") != "Extraño":
+        arcana_ok = reglas.puede_usar_arcana(d.get("raza", ""))
+        c += [Info("Tu personaje tiene un punto en sobrenatural: ¿de qué tipo es su poder?", 13),
+              Opciones("tipo_magia", "", [(k, v["nombre"]) for k, v in TIPOS_MAGIA.items()], cols=3,
+                       deshabilitadas=() if arcana_ok else ("arcana",))]
+    tipo = d.get("tipo_magia") or "arcana"
+    nombre = TIPOS_MAGIA[tipo]["talentos"]
+    c.append(Info(f"Empieza con {n} talento(s): {nombre}. Propón al DJ efectos parecidos a los de nivel "
+                  "0 o 1 de otros juegos (causar una herida leve, curar una herida leve, crear una luz, "
+                  "abrir cerraduras...). Se usan con una tirada de sobrenatural.", 12, C_TEXTO_DIM))
+    ejemplos = ["Curar herida leve", "Globo de luz", "Causar herida leve"]
+    for i in range(n):
+        c.append(Texto(f"talento{i + 1}", f"Talento {i + 1}", f"Ej.: {ejemplos[i % 3]}", max_len=80))
+    return c
+
+
+def v_talentos(d):
+    if d.get("clase") != "Extraño" and not d.get("tipo_magia"):
+        return "Elige el tipo de poder sobrenatural."
+    for i in range(_n_talentos(d)):
+        if not str(d.get(f"talento{i + 1}") or "").strip():
+            return "Escribe todos los talentos iniciales."
+    return None
+
+
+# ── 13. Otros datos ───────────────────────────────────────────────────────────
+def _entrar_otros(d):
+    if "sabe_leer" not in d:
+        d["sabe_leer"] = d.get("clase") in ("Comerciante", "Bardo") or d.get("tipo_magia") == "arcana"
+    if d.get("tipo_magia") == "arcana" and d.get("clase") == "Extraño":
+        d["sabe_leer"] = True
+
+
+def b_otros(d):
+    forzado = d.get("tipo_magia") == "arcana" and d.get("clase") == "Extraño"
+    c = [Check("sabe_leer", "Sabe leer y escribir" + (" (los magos siempre saben)" if forzado else
+               " (comerciantes y bardos de ciudad casi siempre; para el resto decide el DJ)"),
+               deshabilitado=forzado),
+         Texto("equipo", "Equipo inicial (lo decide el DJ)", "Ej.: espada, escudo, cuerda, vendas", max_len=200),
+         Opciones("armadura", "Casillas de protección por armadura (2.2)",
+                  [(0, "Ninguna"), (1, "1 (armadura)"), (2, "2 (armadura pesada)")], cols=3)]
+    retratos = lista_retratos()
+    if retratos:
+        c.append(Opciones("retrato", "Retrato (assets/images/retratos)", [("", "Sin retrato")] + retratos,
+                          cols=3, alto_boton=28, size=11))
+    else:
+        c.append(Info("Consejo: si pones imágenes en assets/images/retratos podrás elegir un retrato "
+                      "para el personaje.", 11, C_TEXTO_DIM))
+    return c
+
+
+# ── 14. Nombre ────────────────────────────────────────────────────────────────
+def b_nombre(d):
+    apodos = CLASES.get(d.get("clase"), {}).get("apodos", [])
+    return [Texto("nombre", "Nombre", "Nombre del personaje", max_len=40),
+            Texto("apodo", "Apodo", "Cómo le llaman", max_len=40),
+            Sugerencias("Apodos sugeridos:", apodos, ["apodo"], cols=3)]
+
+
+def v_nombre(d):
+    return None if str(d.get("nombre") or "").strip() else "El personaje necesita un nombre."
+
+
+# ── 15. Resumen ───────────────────────────────────────────────────────────────
+def b_resumen(d):
+    p = construir_personaje(d)
+    from screens.screen_ficha_personaje import lineas_ficha
+    c = [Info("Revisa la ficha. Pulsa GUARDAR para terminar.", 13, C_SUBTITULO, True)]
+    for titulo, texto in lineas_ficha(p):
+        if titulo:
+            c.append(Titulo(titulo, 14))
+        if texto:
+            c.append(Info(texto, 12))
+    return c
+
+
+PASOS = [
+    Paso("RAZA", b_raza, v_raza),
+    Paso("CLASE", b_clase, v_clase),
+    Paso("EDAD", b_edad, v_edad),
+    hacer_paso_trasfondo(0), hacer_paso_trasfondo(1), hacer_paso_trasfondo(2), hacer_paso_trasfondo(3),
+    Paso("MOTIVACIÓN Y VICIO", b_motivacion, v_motivacion),
+    Paso("APARIENCIA FÍSICA", b_apariencia, v_apariencia),
+    Paso("PERSONALIDAD", b_personalidad, v_personalidad),
+    Paso("RECUERDOS, AMIGOS Y ENEMIGOS", b_recuerdos, v_recuerdos),
+    Paso("TALENTOS INICIALES", b_talentos, v_talentos, visible=lambda d: _n_talentos(d) > 0),
+    Paso("OTROS DATOS", b_otros, al_entrar=_entrar_otros),
+    Paso("NOMBRE Y APODO", b_nombre, v_nombre),
+    Paso("RESUMEN", b_resumen),
+]
+
+
+def construir_personaje(d) -> Personaje:
+    habs = reglas.calcular_habilidades(d)
+    tipo = d.get("tipo_magia", "") if (d.get("clase") == "Extraño" or habs["sobrenatural"]) else ""
+    vicio = d.get("vicio", "")
+    if str(d.get("vicio_detalle") or "").strip():
+        vicio = f"{vicio} ({d['vicio_detalle'].strip()})"
+    p = Personaje(
+        nombre=str(d.get("nombre") or "").strip(), apodo=str(d.get("apodo") or "").strip(),
+        raza=d.get("raza", ""), clase=d.get("clase", ""), eleccion_clase=d.get("eleccion_clase", ""),
+        tipo_magia=tipo, subclase=d.get("subclase", "") if d.get("clase") == "Extraño" else "",
+        deidad=str(d.get("deidad") or "").strip(),
+        edad=str(d.get("edad") or ""), etapa=d.get("etapa", ""),
+        motivacion=d.get("motivacion", ""), vicio=vicio,
+        trasfondo={c: {"texto": str(d.get(f"tf_{c}_txt") or "").strip(), "habilidad": d.get(f"tf_{c}_hab", "")}
+                   for c, _, _ in ETAPAS_TRASFONDO},
+        bono_raza=list(d.get("bono_raza") or []),
+        cabello=str(d.get("cabello") or "").strip(), ojos=str(d.get("ojos") or "").strip(),
+        rasgos_apariencia=_rasgos(d), personalidad=_personalidad(d),
+        recuerdos=[str(d.get(k) or "").strip() for k in ("recuerdo1", "recuerdo2") if str(d.get(k) or "").strip()],
+        amigos=[str(d.get(k) or "").strip() for k in ("amigo1", "amigo2") if str(d.get(k) or "").strip()],
+        enemigos=[str(d.get(k) or "").strip() for k in ("enemigo1", "enemigo2") if str(d.get(k) or "").strip()],
+        lazos=str(d.get("lazos") or "").strip(),
+        sabe_leer=bool(d.get("sabe_leer")), equipo=str(d.get("equipo") or "").strip(),
+        retrato=d.get("retrato") or "", armadura=int(d.get("armadura") or 0),
+        habilidades=habs,
+    )
+    p.talentos = [{"nombre": str(d.get(f"talento{i + 1}") or "").strip(), "descripcion": ""}
+                  for i in range(reglas.talentos_iniciales(d, habs))
+                  if str(d.get(f"talento{i + 1}") or "").strip()]
+    return p
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PANTALLA
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ScreenPersonajeCreador:
     def __init__(self, app):
         self.app = app
-        self.scroll = ScrollArea()
-        self.personaje = Personaje()
-        self.current_step = 0
-        self.flow_screens = self._build_flow()
-        self.current_screen = self.flow_screens[0](self)
-        self.btn_inicio = Button((app.screen.get_width() - 160, 20, 140, 40),
-                                 "INICIO", font_size=14, bold=True)
+        self.datos = {"armadura": 0}
+        self.i = 0
+        self.error = ""
+        self.closed = False
+        self._crear_form()
 
-    def _build_flow(self):
-        flow = [ScreenRaza]
-        flow.append(ScreenBonoRaza)
-        flow.append(ScreenProfesion)
-        flow.append(ScreenBonoProfesion)
-        flow.append(ScreenEdad)
-        flow.append(ScreenBonoEdad)
-        flow.extend([
-            ScreenOrigen, ScreenNinez, ScreenAdolescencia, ScreenJuventud,
-            ScreenDebilidad, ScreenRecuerdos, ScreenAspecto,
-            ScreenMotivacion, ScreenVicio,
-            ScreenNombre, ScreenApodo,
-            ScreenFichaFinal
-        ])
-        return flow
+    # ── navegación ────────────────────────────────────────────────────────
+    def _visibles(self):
+        return [p for p in PASOS if p.visible(self.datos)]
 
-    def handle_event(self, event):
-        if self.btn_inicio.handle_event(event):
-            from screens.screen_partidas import ScreenPartidasManager
-            from screens.screen_personajes import ScreenPersonajesManager
-            if hasattr(self.app, '_party_state') and self.app._party_state is not None:
-                self.app.current_screen = ScreenPartidasManager(self.app)
-            else:
-                self.app.current_screen = ScreenPersonajesManager(self.app)
+    def _paso(self):
+        return PASOS[self.i]
+
+    def _crear_form(self):
+        W, H = self.app.screen.get_size()
+        paso = self._paso()
+        if paso.al_entrar:
+            paso.al_entrar(self.datos)
+        self.form = Formulario(paso.builder, self.datos, (60, 200, max(500, W - 520), H - 200 - 90))
+        self.error = ""
+
+    def _siguiente(self):
+        e = self._paso().validar(self.datos)
+        if e:
+            self.error = e
             return
-        self.current_screen.handle_event(event)
+        j = self.i + 1
+        while j < len(PASOS) and not PASOS[j].visible(self.datos):
+            j += 1
+        if j >= len(PASOS):
+            self._guardar()
+            return
+        self.i = j
+        self._crear_form()
 
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        self.btn_inicio.update_hover(mp)
-        self.current_screen.update(dt)
+    def _atras(self):
+        j = self.i - 1
+        while j >= 0 and not PASOS[j].visible(self.datos):
+            j -= 1
+        if j < 0:
+            self._salir()
+            return
+        self.i = j
+        self._crear_form()
 
-    def draw(self, surf):
-        surf.fill(C_FONDO)
-        self._draw_header(surf)
-        self.current_screen.draw(surf)
-        self.btn_inicio.draw(surf)
-
-    def _draw_header(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "WARHAMMER", W // 2 - 180, 40, 60, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_TITULO, (60, 130), (W - 60, 130), 2)
-
-    def go_next(self):
-        self.current_step += 1
-        if self.current_step < len(self.flow_screens):
-            self.current_screen = self.flow_screens[self.current_step](self)
+    def _salir(self):
+        from screens.screen_partidas import ScreenPartidasManager
+        from screens.screen_personajes import ScreenPersonajesManager
+        if getattr(self.app, "_party_state", None) is not None:
+            self.app.current_screen = ScreenPartidasManager(self.app)
         else:
-            self._guardar_y_volver()
+            self.app.current_screen = ScreenPersonajesManager(self.app)
 
-    def go_back(self):
-        if self.current_step > 0:
-            self.current_step -= 1
-            self.current_screen = self.flow_screens[self.current_step](self)
-
-    def _guardar_y_volver(self):
+    def _guardar(self):
+        p = construir_personaje(self.datos)
+        errores = reglas.errores_creacion(self.datos)
+        if errores:
+            self.error = errores[0]
+            return
         try:
-            persistence.guardar_personaje(self.personaje)
-            from screens.screen_partidas import ScreenPartidasManager
-            from screens.screen_personajes import ScreenPersonajesManager
-            if hasattr(self.app, '_party_state') and self.app._party_state is not None:
-                self.app.current_screen = ScreenPartidasManager(self.app)
-            else:
-                self.app.current_screen = ScreenPersonajesManager(self.app)
+            persistence.guardar_personaje(p)
         except Exception as e:
-            print(f"Error al guardar: {e}")
-
-
-class ScreenRaza:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.raza
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, btn_w, btn_h = 3, 200, 52
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 16) // 2
-        self.botones_raza = []
-        for i, raza in enumerate(RAZAS):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 16)
-            y = 220 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), raza, font_size=14, selected=(raza == self.seleccion))
-            self.botones_raza.append((b, raza))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Inicio")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, raza in self.botones_raza:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = raza
-                for b2, _ in self.botones_raza:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            from screens.screen_personajes import ScreenPersonajesManager
-            self.creator.app.current_screen = ScreenPersonajesManager(self.creator.app)
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir una raza."
-            else:
-                self.creator.personaje.raza = self.seleccion
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones_raza:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 1 — RAZA", W // 2 - 120, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige la raza de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones_raza:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            draw_text(surf, CARACTERISTICAS[self.seleccion], 80, 420 - self.scroll.offset, 12, C_SUBTITULO, max_width=W - 160)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenBonoRaza:
-    """Elige qué habilidades mejora tu raza (si aplica)."""
-    def __init__(self, creator):
-        self.creator = creator
-        self._skip = False
-        raza = creator.personaje.raza
-        bono = BONOS_RAZA.get(raza)
-        if bono is None or bono["tipo"] != "elegir":
-            self._skip = True
+            self.error = f"Error al guardar: {e}"
             return
-        titulo = f"PASO 1b — BONO RACIAL: {raza.upper()}"
-        desc = f"Distribuye {bono['cantidad']} punto(s) entre las habilidades disponibles."
-        max_por = bono.get("max_por_habilidad", 1)
-        self._screen = ScreenElegirHabilidades(
-            creator, titulo, desc,
-            bono["habilidades"], bono["cantidad"], max_por_habilidad=max_por
-        )
+        state = getattr(self.app, "_party_state", None)
+        if state is not None:
+            state.setdefault("seleccionados_ids", []).append(p.id)
+        self._salir()
 
-    def handle_event(self, e):
-        if self._skip:
-            self.creator.go_next()
+    # ── bucle ─────────────────────────────────────────────────────────────
+    def _rect_botones(self):
+        W, H = self.app.screen.get_size()
+        return (pygame.Rect(60, H - 70, 170, 44), pygame.Rect(250, H - 70, 200, 44),
+                pygame.Rect(W - 230, 20, 190, 40))
+
+    def handle_event(self, event):
+        atras, sig, cancelar = self._rect_botones()
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if atras.collidepoint(event.pos):
+                self._atras()
+                return
+            if sig.collidepoint(event.pos):
+                self._siguiente()
+                return
+            if cancelar.collidepoint(event.pos):
+                self._salir()
+                return
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            self._siguiente()
             return
-        if hasattr(self, '_screen'): self._screen.handle_event(e)
-    def update(self, dt):
-        if self._skip:
-            self.creator.go_next()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self._atras()
             return
-        if hasattr(self, '_screen'): self._screen.update(dt)
-    def draw(self, s):
-        if hasattr(self, '_screen'): self._screen.draw(s)
-
-
-class ScreenProfesion:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.profesion
-        self.error = ""
-        W = creator.app.screen.get_width()
-        nombres = list(PROFESIONES.keys())
-        cols, btn_w, btn_h = 4, 180, 48
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 12) // 2
-        self.botones_prof = []
-        for i, prof in enumerate(nombres):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 12)
-            y = 210 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), prof, font_size=13, selected=(prof == self.seleccion))
-            self.botones_prof.append((b, prof))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, prof in self.botones_prof:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = prof
-                for b2, _ in self.botones_prof:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir una profesión."
-            else:
-                self.creator.personaje.profesion = self.seleccion
-                bonos = PROFESIONES[self.seleccion]["bonos"]
-                for bono in bonos:
-                    fija, _ = bono
-                    if fija:
-                        actual = self.creator.personaje.habilidades.get(fija, 0)
-                        if actual < 4:
-                            self.creator.personaje.habilidades[fija] = actual + 1
-                self.creator.go_next()
+        if self.form.evento(event):
+            self.error = ""
 
     def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones_prof:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
+        pass
 
     def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 2 — PROFESIÓN", W // 2 - 130, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige la profesión de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones_prof:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            bonos = PROFESIONES[self.seleccion]["bonos"]
-            partes = []
-            for fija, opciones in bonos:
-                if fija:
-                    partes.append(fija)
-                elif opciones:
-                    partes.append("(" + "/".join(opciones) + ")")
-            draw_text(surf, "Bonos: " + ", ".join(partes), 80, 520 - self.scroll.offset, 12, C_SUBTITULO, max_width=W - 160)
+        W, H = surf.get_size()
+        surf.fill(C_FONDO)
+        draw_text(surf, TITLE, 60, 24, 34, C_TITULO, bold=True)
+        draw_text(surf, "CREACIÓN DE PERSONAJE", 62, 68, 16, C_SUBTITULO, bold=True)
+        pygame.draw.line(surf, C_TITULO, (40, 100), (W - 40, 100), 2)
+        vis = self._visibles()
+        paso = self._paso()
+        n = vis.index(paso) + 1 if paso in vis else self.i + 1
+        draw_text(surf, f"PASO {n}/{len(vis)} — {paso.titulo}", 60, 120, 24, C_TITULO, bold=True)
+        pygame.draw.line(surf, C_BORDE, (60, 160), (W - 480, 160), 1)
+        # progreso
+        for k in range(len(vis)):
+            col = C_TITULO if k < n else C_SEPARADOR
+            pygame.draw.rect(surf, col, (60 + k * 28, 172, 22, 8), border_radius=3)
+
+        self.form.dibujar(surf)
+        self._panel(surf, pygame.Rect(W - 440, 120, 400, H - 210))
+
+        atras, sig, cancelar = self._rect_botones()
+        boton(surf, atras, "◄ Atrás", 15)
+        boton(surf, sig, "GUARDAR" if paso is PASOS[-1] else "Siguiente ►", 15, color=C_BOTON_HOV)
+        boton(surf, cancelar, "Cancelar", 13, color=C_ERROR)
         if self.error:
-            draw_text(surf, self.error, W // 2 - 180, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenBonoProfesion:
-    """Elige la habilidad opcional de la profesión cuando hay elección."""
-    def __init__(self, creator):
-        self.creator = creator
-        self._skip = False
-        prof = creator.personaje.profesion
-        bono_opcional = None
-        for fija, opciones in PROFESIONES[prof]["bonos"]:
-            if fija is None and opciones:
-                bono_opcional = opciones
-                break
-        if bono_opcional is None:
-            self._skip = True
-            return
-        titulo = f"BONO DE {prof.upper()}"
-        desc = f"Elige 1 habilidad adicional para tu {prof}."
-        self._screen = ScreenElegirHabilidades(creator, titulo, desc, bono_opcional, 1)
-
-    def handle_event(self, e):
-        if self._skip:
-            self.creator.go_next()
-            return
-        if hasattr(self, '_screen'): self._screen.handle_event(e)
-    def update(self, dt):
-        if self._skip:
-            self.creator.go_next()
-            return
-        if hasattr(self, '_screen'): self._screen.update(dt)
-    def draw(self, s):
-        if hasattr(self, '_screen'): self._screen.draw(s)
-
-
-class ScreenEdad:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.edad
-        self.error = ""
-        W = creator.app.screen.get_width()
-        card_w, card_h = 260, 120
-        total_w = len(EDADES) * card_w + (len(EDADES) - 1) * 24
-        start_x = W // 2 - total_w // 2
-        self.cards = []
-        for i, (edad, info) in enumerate(EDADES.items()):
-            x = start_x + i * (card_w + 24)
-            self.cards.append({"rect": pygame.Rect(x, 210, card_w, card_h), "edad": edad, "info": info["desc"],
-                               "selected": edad == self.seleccion, "hovered": False})
-        self.btn_atras = Button((W // 2 - 220, 360, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 360, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        mp = pygame.mouse.get_pos()
-        for card in self.cards:
-            r = card["rect"].move(0, -self.scroll.offset)
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if r.collidepoint(mp):
-                    self.seleccion = card["edad"]
-                    for c2 in self.cards:
-                        c2["selected"] = False
-                    card["selected"] = True
-                    self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir una edad."
-            else:
-                self.creator.personaje.edad = self.seleccion
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for card in self.cards:
-            r = card["rect"].move(0, -self.scroll.offset)
-            card["hovered"] = r.collidepoint(mp)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 3 — EDAD", W // 2 - 100, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige la edad de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for card in self.cards:
-            r = card["rect"].move(0, -self.scroll.offset)
-            if card["selected"]:
-                bg = C_ENTRADA_SEL
-                border = C_TITULO
-            elif card["hovered"]:
-                bg = (52, 36, 14)
-                border = C_BORDE
-            else:
-                bg = C_ENTRADA
-                border = C_BORDE
-            pygame.draw.rect(surf, bg, r, border_radius=8)
-            pygame.draw.rect(surf, border, r, 2, border_radius=8)
-            ew = text_size(card["edad"], 22, bold=True)[0]
-            draw_text(surf, card["edad"], r.x + (r.width - ew) // 2, r.y + 10, 22, C_TITULO, bold=True)
-            draw_text(surf, card["info"], r.x + 12, r.y + 46, 12, C_TEXTO, max_width=r.width - 24)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 180, 350 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenBonoEdad:
-    """Elige la habilidad que mejora por la edad."""
-    def __init__(self, creator):
-        edad = creator.personaje.edad
-        atr = EDADES[edad]["atributo"]
-        habilidades_atr = HABILIDADES_POR_ATRIBUTO[atr]
-        titulo = f"BONO DE EDAD: {edad.upper()}"
-        desc = f"Elige 1 habilidad de {atr} para mejorar."
-        self._screen = ScreenElegirHabilidades(creator, titulo, desc, habilidades_atr, 1)
-
-    def handle_event(self, e):
-        if hasattr(self, '_screen'): self._screen.handle_event(e)
-    def update(self, dt):
-        if hasattr(self, '_screen'): self._screen.update(dt)
-    def draw(self, s):
-        if hasattr(self, '_screen'): self._screen.draw(s)
-
-
-class ScreenOrigen:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.trasfondo_origen
-        self.error = ""
-        W = creator.app.screen.get_width()
-        nombres = list(ORIGENES.keys())
-        cols, btn_w, btn_h = 3, 220, 52
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 16) // 2
-        self.botones = []
-        for i, key in enumerate(nombres):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 16)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), key, font_size=14, selected=(key == self.seleccion))
-            self.botones.append((b, key))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, key in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = key
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir un origen."
-            else:
-                self.creator.personaje.trasfondo_origen = self.seleccion
-                hab = ORIGENES[self.seleccion]["habilidad"]
-                if hab:
-                    actual = self.creator.personaje.habilidades.get(hab, 0)
-                    if actual < 3:
-                        self.creator.personaje.habilidades[hab] = actual + 1
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 4 — ORIGEN", W // 2 - 110, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige el origen de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            draw_text(surf, ORIGENES[self.seleccion]["desc"], 80, 380 - self.scroll.offset, 12, C_SUBTITULO)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenNinez:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.trasfondo_ninez
-        self.error = ""
-        W = creator.app.screen.get_width()
-        nombres = list(NINEZ.keys())
-        cols, btn_w, btn_h = 3, 220, 52
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 16) // 2
-        self.botones = []
-        for i, key in enumerate(nombres):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 16)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), key, font_size=14, selected=(key == self.seleccion))
-            self.botones.append((b, key))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, key in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = key
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir un trasfondo de niñez."
-            else:
-                self.creator.personaje.trasfondo_ninez = self.seleccion
-                hab = NINEZ[self.seleccion]["habilidad"]
-                if hab:
-                    actual = self.creator.personaje.habilidades.get(hab, 0)
-                    if actual < 3:
-                        self.creator.personaje.habilidades[hab] = actual + 1
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 5 — NIÑEZ", W // 2 - 100, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige en qué destacabas de niño.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            draw_text(surf, NINEZ[self.seleccion]["desc"], 80, 380 - self.scroll.offset, 12, C_SUBTITULO)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenAdolescencia:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.trasfondo_adolescencia
-        self.error = ""
-        W = creator.app.screen.get_width()
-        nombres = list(ADOLESCENCIA.keys())
-        cols, btn_w, btn_h = 3, 260, 52
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 16) // 2
-        self.botones = []
-        for i, key in enumerate(nombres):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 16)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), key, font_size=13, selected=(key == self.seleccion))
-            self.botones.append((b, key))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, key in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = key
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir un trasfondo de adolescencia."
-            else:
-                self.creator.personaje.trasfondo_adolescencia = self.seleccion
-                hab = ADOLESCENCIA[self.seleccion]["habilidad"]
-                if hab:
-                    actual = self.creator.personaje.habilidades.get(hab, 0)
-                    if actual < 3:
-                        self.creator.personaje.habilidades[hab] = actual + 1
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 6 — ADOLESCENCIA", W // 2 - 160, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige qué hiciste en tu adolescencia.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            draw_text(surf, ADOLESCENCIA[self.seleccion]["desc"], 80, 380 - self.scroll.offset, 12, C_SUBTITULO)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenJuventud:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.trasfondo_juventud
-        self.error = ""
-        W = creator.app.screen.get_width()
-        nombres = list(JUVENTUD.keys())
-        cols, btn_w, btn_h = 4, 220, 52
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 14) // 2
-        self.botones = []
-        for i, key in enumerate(nombres):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 14)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), key, font_size=13, selected=(key == self.seleccion))
-            self.botones.append((b, key))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, key in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = key
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir un trasfondo de juventud."
-            else:
-                self.creator.personaje.trasfondo_juventud = self.seleccion
-                hab = JUVENTUD[self.seleccion]["habilidad"]
-                if hab:
-                    actual = self.creator.personaje.habilidades.get(hab, 0)
-                    if actual < 3:
-                        self.creator.personaje.habilidades[hab] = actual + 1
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 7 — JUVENTUD", W // 2 - 130, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige qué hiciste en tu juventud.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.seleccion:
-            draw_text(surf, JUVENTUD[self.seleccion]["desc"], 80, 380 - self.scroll.offset, 12, C_SUBTITULO)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenDebilidad:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.debilidad
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, cb_w = 3, 380
-        start_x = W // 2 - (cols * cb_w) // 2
-        self.checks = []
-        for i, item in enumerate(DEBILIDADES):
-            col, row = i % cols, i // cols
-            x = start_x + col * cb_w
-            y = 280 + row * 44
-            cb = Checkbox(x, y, item, font_size=13, max_label_w=340, checked=(item == self.seleccion))
-            self.checks.append(cb)
-        num_filas = (len(DEBILIDADES) + cols - 1) // cols
-        botones_y = 280 + num_filas * 44 + 60
-        self.btn_atras = Button((W // 2 - 220, botones_y, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, botones_y, 180, 44), "Siguiente", color=C_BOTON_HOV)
-        self.scroll.set_content_height(botones_y + 100, creator.app.screen.get_height() - 120)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for cb in self.checks:
-            if cb.handle_event(event, self.scroll.offset):
-                if cb.checked:
-                    for other in self.checks:
-                        if other != cb:
-                            other.checked = False
-                    self.seleccion = cb.text
-                else:
-                    self.seleccion = ""
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir una debilidad."
-            else:
-                self.creator.personaje.debilidad = self.seleccion
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for cb in self.checks:
-            cb.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 8 — DEBILIDAD", W // 2 - 120, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige una debilidad.", 80, 250, 13, C_TEXTO_DIM, max_width=W - 160)
-        for cb in self.checks:
-            cb.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, 80, self.btn_atras.rect.y - 24 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
-
-
-class ScreenRecuerdos:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = set(creator.personaje.recuerdos)
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, cb_w = 3, 380
-        start_x = W // 2 - (cols * cb_w) // 2
-        self.checks = []
-        for i, item in enumerate(RECUERDOS):
-            col, row = i % cols, i // cols
-            x = start_x + col * cb_w
-            y = 280 + row * 44
-            cb = Checkbox(x, y, item, font_size=13, max_label_w=340, checked=(item in self.seleccion))
-            self.checks.append(cb)
-        num_filas = (len(RECUERDOS) + cols - 1) // cols
-        botones_y = 280 + num_filas * 44 + 60
-        self.btn_atras = Button((W // 2 - 220, botones_y, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, botones_y, 180, 44), "Siguiente", color=C_BOTON_HOV)
-        self.scroll.set_content_height(botones_y + 100, creator.app.screen.get_height() - 120)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for cb in self.checks:
-            if cb.handle_event(event, self.scroll.offset):
-                if cb.checked:
-                    if len(self.seleccion) >= 2:
-                        cb.checked = False
-                    else:
-                        self.seleccion.add(cb.text)
-                else:
-                    self.seleccion.discard(cb.text)
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if len(self.seleccion) != 2:
-                self.error = f"Debes elegir exactamente 2 recuerdos. Tienes {len(self.seleccion)}."
-            else:
-                self.creator.personaje.recuerdos = list(self.seleccion)
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for cb in self.checks:
-            cb.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 9 — RECUERDOS", W // 2 - 140, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, f"Elige DOS recuerdos. ({len(self.seleccion)}/2)", 80, 250, 13, C_TEXTO_DIM, max_width=W - 160)
-        for cb in self.checks:
-            cb.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, 80, self.btn_atras.rect.y - 24 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
-
-
-class ScreenAspecto:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = set(creator.personaje.aspecto)
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, cb_w = 3, 380
-        start_x = W // 2 - (cols * cb_w) // 2
-        self.checks = []
-        for i, item in enumerate(DETALLES_ASPECTO):
-            col, row = i % cols, i // cols
-            x = start_x + col * cb_w
-            y = 280 + row * 44
-            cb = Checkbox(x, y, item, font_size=13, max_label_w=340, checked=(item in self.seleccion))
-            self.checks.append(cb)
-        num_filas = (len(DETALLES_ASPECTO) + cols - 1) // cols
-        botones_y = 280 + num_filas * 44 + 60
-        self.btn_atras = Button((W // 2 - 220, botones_y, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, botones_y, 180, 44), "Siguiente", color=C_BOTON_HOV)
-        self.scroll.set_content_height(botones_y + 100, creator.app.screen.get_height() - 120)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for cb in self.checks:
-            if cb.handle_event(event, self.scroll.offset):
-                if cb.checked:
-                    if len(self.seleccion) >= 2:
-                        cb.checked = False
-                    else:
-                        self.seleccion.add(cb.text)
-                else:
-                    self.seleccion.discard(cb.text)
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if len(self.seleccion) != 2:
-                self.error = f"Debes elegir exactamente 2 rasgos. Tienes {len(self.seleccion)}."
-            else:
-                self.creator.personaje.aspecto = list(self.seleccion)
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for cb in self.checks:
-            cb.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 10 — ASPECTO", W // 2 - 120, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, f"Elige DOS rasgos f�sicos. ({len(self.seleccion)}/2)", 80, 250, 13, C_TEXTO_DIM, max_width=W - 160)
-        for cb in self.checks:
-            cb.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, 80, self.btn_atras.rect.y - 24 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
-
-
-class ScreenMotivacion:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.motivacion
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, btn_w, btn_h = 4, 180, 50
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 14) // 2
-        self.botones = []
-        for i, mot in enumerate(MOTIVACIONES):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 14)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), mot, font_size=14, selected=(mot == self.seleccion))
-            self.botones.append((b, mot))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, mot in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = mot
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir una motivación."
-            else:
-                self.creator.personaje.motivacion = self.seleccion
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 11 — MOTIVACIÓN", W // 2 - 140, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige la motivación de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenVicio:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        self.seleccion = creator.personaje.vicio
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, btn_w, btn_h = 3, 200, 50
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 14) // 2
-        self.botones = []
-        for i, v in enumerate(VICIOS):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 14)
-            y = 240 + row * (btn_h + 12)
-            b = Button((x, y, btn_w, btn_h), v, font_size=14, selected=(v == self.seleccion))
-            self.botones.append((b, v))
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, v in self.botones:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = v
-                for b2, _ in self.botones:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            if not self.seleccion:
-                self.error = "Debes elegir un vicio."
-            else:
-                self.creator.personaje.vicio = self.seleccion
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 12 — VICIO", W // 2 - 100, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "Elige el vicio de tu personaje.", 80, 200, 13, C_TEXTO_DIM, max_width=W - 160)
-        for btn, _ in self.botones:
-            btn.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 160, 730 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenNombre:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        W = creator.app.screen.get_width()
-        self.input = TextInput((W // 2 - 280, 260, 560, 56), font_size=22, prompt="", center=True)
-        self.input.text = creator.personaje.nombre
-        self.input.active = True
-        self.error = ""
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        self.input.handle_event(event, self.scroll.offset)
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            nombre = self.input.text.strip()
-            if not nombre:
-                self.error = "El nombre no puede estar vacío."
-            else:
-                self.creator.personaje.nombre = nombre
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-        self.input.update(dt)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 13 — NOMBRE", W // 2 - 120, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        draw_text(surf, "¿Cómo se llama tu personaje?", W // 2 - text_size("¿Cómo se llama tu personaje?", 18, bold=True)[0] // 2, 220, 18, C_SUBTITULO, bold=True)
-        self.input.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 200, 340 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenApodo:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        prof = creator.personaje.profesion
-        self.apodos = PROFESIONES[prof]["apodos"] if prof in PROFESIONES else []
-        self.seleccion = creator.personaje.apodo
-        self.error = ""
-        W = creator.app.screen.get_width()
-        cols, btn_w, btn_h = 3, 200, 46
-        start_x = W // 2 - (cols * btn_w + (cols - 1) * 14) // 2
-        self.botones_ap = []
-        for i, ap in enumerate(self.apodos):
-            col, row = i % cols, i // cols
-            x = start_x + col * (btn_w + 14)
-            y = 210 + row * (btn_h + 10)
-            b = Button((x, y, btn_w, btn_h), ap, font_size=13, selected=(ap == self.seleccion))
-            self.botones_ap.append((b, ap))
-        self.input_custom = TextInput((W // 2 - 200, 400, 400, 44), font_size=16, prompt="", center=True)
-        if self.seleccion and self.seleccion not in self.apodos:
-            self.input_custom.text = self.seleccion
-        self.btn_atras = Button((W // 2 - 220, 750, 180, 44), "Atrás")
-        self.btn_siguiente = Button((W // 2 + 40, 750, 180, 44), "Siguiente", color=C_BOTON_HOV)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        for btn, ap in self.botones_ap:
-            if btn.handle_event(event, self.scroll.offset):
-                self.seleccion = ap
-                self.input_custom.text = ""
-                for b2, _ in self.botones_ap:
-                    b2.selected = False
-                btn.selected = True
-                self.error = ""
-        self.input_custom.handle_event(event, self.scroll.offset)
-        if self.input_custom.text:
-            for b2, _ in self.botones_ap:
-                b2.selected = False
-        if self.btn_atras.handle_event(event, self.scroll.offset):
-            self.creator.go_back()
-        if self.btn_siguiente.handle_event(event, self.scroll.offset):
-            apodo_final = self.input_custom.text.strip() or self.seleccion
-            if not apodo_final:
-                self.error = "Debes elegir o escribir un apodo."
-            else:
-                self.creator.personaje.apodo = apodo_final
-                self.creator.go_next()
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        for btn, _ in self.botones_ap:
-            btn.update_hover(mp, self.scroll.offset)
-        self.btn_atras.update_hover(mp, self.scroll.offset)
-        self.btn_siguiente.update_hover(mp, self.scroll.offset)
-        self.input_custom.update(dt)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        draw_text(surf, "PASO 14 — APODO", W // 2 - 110, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-        for btn, _ in self.botones_ap:
-            btn.draw(surf, self.scroll.offset)
-        draw_text(surf, "O escribe tu propio apodo:", W // 2 - text_size("O escribe tu propio apodo:", 13)[0] // 2, 380, 13, C_TEXTO_DIM)
-        self.input_custom.draw(surf, self.scroll.offset)
-        if self.error:
-            draw_text(surf, self.error, W // 2 - 180, 405 - self.scroll.offset, 13, C_ERROR)
-        self.btn_atras.draw(surf, self.scroll.offset)
-        self.btn_siguiente.draw(surf, self.scroll.offset)
-
-
-class ScreenFichaFinal:
-    def __init__(self, creator):
-        self.creator = creator
-        self.scroll = ScrollArea()
-        p = creator.personaje
-        W = creator.app.screen.get_width()
-        self.btn_guardar = Button((W // 2 - 280, 0, 220, 48), "Guardar personaje", font_size=15, bold=True, color=(50, 100, 50))
-        self.btn_cancelar = Button((W // 2 + 60, 0, 220, 48), "Cancelar", font_size=15, bold=True, color=C_ERROR)
-        self._build_content_height()
-
-    def _build_content_height(self):
-        h = 800
-        self.scroll.set_content_height(h, self.creator.app.screen.get_height() - 120)
-
-    def handle_event(self, event):
-        self.scroll.handle_event(event)
-        if self.btn_guardar.handle_event(event, self.scroll.offset):
-            self.creator._guardar_y_volver()
-        if self.btn_cancelar.handle_event(event, self.scroll.offset):
-            from screens.screen_partidas import ScreenPartidasManager
-            from screens.screen_personajes import ScreenPersonajesManager
-            app = self.creator.app
-            if hasattr(app, '_party_state') and app._party_state is not None:
-                app.current_screen = ScreenPartidasManager(app)
-            else:
-                app.current_screen = ScreenPersonajesManager(app)
-
-    def update(self, dt):
-        mp = pygame.mouse.get_pos()
-        self.btn_guardar.update_hover(mp, self.scroll.offset)
-        self.btn_cancelar.update_hover(mp, self.scroll.offset)
-
-    def draw(self, surf):
-        W = surf.get_width()
-        off = self.scroll.offset
-        p = self.creator.personaje
-
-        draw_text(surf, "FICHA DE PERSONAJE", W // 2 - 150, 160, 26, C_TITULO, bold=True)
-        pygame.draw.line(surf, C_BORDE, (80, 196), (W - 80, 196), 2)
-
-        y = 210
-        draw_text(surf, f"{p.nombre} '{p.apodo}'", 80, y - off, 20, C_TITULO, bold=True)
-        y += 28
-        draw_text(surf, f"{p.raza}  ·  {p.profesion}  ·  {p.edad}", 80, y - off, 14, C_SUBTITULO)
-        y += 24
-
-        atrib_txt = f"CUE:{p.atributos['CUE']}  INT:{p.atributos['INT']}  VOL:{p.atributos['VOL']}"
-        draw_text(surf, f"Atributos: {atrib_txt}", 80, y - off, 13, C_TEXTO)
-        y += 22
-
-        habs_con_valor = {h: v for h, v in p.habilidades.items() if v > 0}
-        if habs_con_valor:
-            draw_text(surf, "Habilidades:", 80, y - off, 13, C_TITULO, bold=True)
+            texto_ajustado(surf, self.error, 470, H - 66, 14, C_ERROR, W - 940)
+
+    def _panel(self, surf, r):
+        d = self.datos
+        pygame.draw.rect(surf, C_PANEL, r, border_radius=8)
+        pygame.draw.rect(surf, C_BORDE, r, 2, border_radius=8)
+        x, y = r.x + 16, r.y + 12
+        draw_text(surf, "TU PERSONAJE", x, y, 15, C_TITULO, bold=True)
+        y += 26
+        clase = d.get("clase", "")
+        if clase == "Extraño" and d.get("subclase"):
+            clase = f"Extraño ({d['subclase']})"
+        for etq, val in [("Raza", d.get("raza")), ("Clase", clase), ("Edad",
+                         f"{d.get('edad', '')} {('(' + d['etapa'] + ')') if d.get('etapa') else ''}".strip())]:
+            draw_text(surf, f"{etq}: {val or '—'}", x, y, 13, C_TEXTO)
+            y += 19
+        y += 6
+        habs = reglas.calcular_habilidades(d)
+        hc = reglas.habilidad_de_clase(d)
+        for atr in reglas.ATRIBUTOS:
+            draw_text(surf, NOMBRE_ATRIBUTO[atr].upper(), x, y, 13, C_SUBTITULO, bold=True)
             y += 18
-            for hab, val in sorted(habs_con_valor.items()):
-                draw_text(surf, f"  {hab}: {val}", 100, y - off, 12, C_TEXTO)
-                y += 16
-
-        draw_text(surf, f"Estrés: {p.estres}/10  ·  Corrupción: {p.corrupcion}/10  ·  Nivel: {p.nivel}", 80, y - off, 13, C_TEXTO)
-        y += 22
-        draw_text(surf, f"Heridas: Leves {p.heridas_leves}/3  Graves {p.heridas_graves}/2  Muy Graves {p.heridas_muy_graves}/1", 80, y - off, 13, C_TEXTO)
-        y += 22
-
-        draw_text(surf, f"Debilidad: {p.debilidad}", 80, y - off, 13, C_TEXTO_DIM)
-        y += 18
-        draw_text(surf, f"Motivación: {p.motivacion}  ·  Vicio: {p.vicio}", 80, y - off, 13, C_TEXTO_DIM)
-        y += 18
-
-        if p.recuerdos:
-            draw_text(surf, "Recuerdos: " + ", ".join(p.recuerdos), 80, y - off, 12, C_TEXTO_DIM, max_width=W - 160)
-            y += 16
-        if p.aspecto:
-            draw_text(surf, "Aspecto: " + ", ".join(p.aspecto), 80, y - off, 12, C_TEXTO_DIM, max_width=W - 160)
-            y += 16
-
-        for label, val in [("Origen", p.trasfondo_origen), ("Niñez", p.trasfondo_ninez),
-                           ("Adolescencia", p.trasfondo_adolescencia), ("Juventud", p.trasfondo_juventud)]:
-            if val:
-                draw_text(surf, f"{label}: {val}", 80, y - off, 12, C_TEXTO_DIM)
-                y += 16
-
-        nav_y = y + 20
-        self.btn_guardar.rect.y = nav_y
-        self.btn_cancelar.rect.y = nav_y
-        self.btn_guardar.draw(surf, off)
-        self.btn_cancelar.draw(surf, off)
-
-        self.scroll.set_content_height(nav_y + 80, self.creator.app.screen.get_height() - 120)
-        self.scroll.draw_scrollbar(surf, pygame.Rect(0, 120, W, surf.get_height() - 120))
+            for h in HABILIDADES_POR_ATRIBUTO[atr]:
+                v = habs[h]
+                col = C_TEXTO if v else C_TEXTO_DIM
+                draw_text(surf, ("♦ " if h == hc else "  ") + h, x + 4, y, 13, C_TITULO if h == hc else col)
+                for k in range(4):
+                    cx = r.right - 110 + k * 22
+                    if k < v:
+                        pygame.draw.circle(surf, C_TITULO, (cx, y + 8), 7)
+                    else:
+                        pygame.draw.circle(surf, C_SEPARADOR, (cx, y + 8), 7, 2)
+                y += 19
+            y += 4
+        nt = reglas.talentos_iniciales(d, habs)
+        draw_text(surf, f"Talentos iniciales: {nt}   PG: 10   Estrés: 0", x, y, 12, C_TEXTO_DIM)
+        y += 20
+        errores = reglas.errores_creacion(d, habs)
+        for e in errores[:4]:
+            y += texto_ajustado(surf, "! " + e, x, y, 12, C_ERROR, r.w - 32)
+        if hc:
+            draw_text(surf, "♦ = habilidad de clase", x, r.bottom - 24, 11, C_TEXTO_DIM)

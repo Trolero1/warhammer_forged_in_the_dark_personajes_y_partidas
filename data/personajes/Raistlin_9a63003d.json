@@ -1,0 +1,115 @@
+{
+  "id": "9a63003d",
+  "numero": 1,
+  "nombre": "Raistlin",
+  "apodo": "El Rubio",
+  "raza": "Humano",
+  "clase": "Extraño",
+  "eleccion_clase": "",
+  "tipo_magia": "arcana",
+  "subclase": "Mago",
+  "deidad": "",
+  "edad": "18",
+  "etapa": "Joven",
+  "motivacion": "Conocimiento",
+  "vicio": "Sexo",
+  "trasfondo": {
+    "origen": {
+      "texto": "Mi padre era un antiguo mercenario que me enseñó a luchar.",
+      "habilidad": "luchar"
+    },
+    "ninez": {
+      "texto": "Mis padres tenían una granja y aprendía a nadar, trepar, correr etc",
+      "habilidad": "mover"
+    },
+    "adolescencia": {
+      "texto": "En la adolescencia desarrollé unas jaquecas tremendas que sólo se calmaron cuando encontré a Balazar, un mago que me enseñó a controlarlas y a usar la magia arcana",
+      "habilidad": "sobrenatural"
+    },
+    "juventud": {
+      "texto": "En mi juventud, al morir mis padres, vendí la granja y me gasté el dinero de fiesta en fiesta.",
+      "habilidad": "socializar"
+    }
+  },
+  "bono_raza": [
+    "sobrenatural",
+    "percibir"
+  ],
+  "cabello": "Rubio",
+  "ojos": "Grises",
+  "rasgos_apariencia": [
+    "Delgado",
+    "Atractivo"
+  ],
+  "personalidad": [
+    "Curioso",
+    "Extrovertido"
+  ],
+  "recuerdos": [
+    "Una llave ornamentada",
+    "Un silbato de hueso"
+  ],
+  "amigos": [
+    "Balazar mi tutor mago",
+    "Miriam una antigua novia"
+  ],
+  "enemigos": [
+    "Demóstenes un mago oscuro, enemigo de Balazar",
+    "Lydia, la hija de Demóstenes, antiguo amor."
+  ],
+  "lazos": "",
+  "sabe_leer": true,
+  "equipo": "",
+  "retrato": "",
+  "notas": "",
+  "habilidades": {
+    "sigilo": 0,
+    "estudiar": 1,
+    "percibir": 1,
+    "trastear": 0,
+    "cazar": 0,
+    "mover": 1,
+    "luchar": 1,
+    "destruir": 0,
+    "sobrenatural": 3,
+    "liderar": 0,
+    "socializar": 1,
+    "influir": 0
+  },
+  "atributos": {
+    "INT": 0,
+    "CUE": 0,
+    "VOL": 0
+  },
+  "barra_nivel": 0,
+  "estres": 0,
+  "corrupcion": 0,
+  "puntos_golpe": 10,
+  "pg_max": 10,
+  "traumas": [],
+  "ruinas": [],
+  "talentos": [
+    {
+      "nombre": "Proyectil mágico quiera un punto de golpe",
+      "descripcion": ""
+    },
+    {
+      "nombre": "Curar herida leve cura un punto de golpe",
+      "descripcion": ""
+    },
+    {
+      "nombre": "Levitar 5 metros",
+      "descripcion": ""
+    }
+  ],
+  "armadura": 0,
+  "armadura_usada": 0,
+  "estado": "activo",
+  "traumas_pendientes": 0,
+  "ruinas_pendientes": 0,
+  "talentos_pendientes": 0,
+  "puntos_habilidad_pendientes": {},
+  "xp_sesion": [],
+  "fecha_creacion": "2026-11-21 14:23",
+  "version": 2
+}
